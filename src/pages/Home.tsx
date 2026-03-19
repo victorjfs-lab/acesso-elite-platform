@@ -18,7 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 const highlights = [
   "Landing pública para apresentar seus cursos e capturar matrículas.",
   "Link individual de cadastro por turma ou por oferta.",
-  "Liberação manual do aluno com prazo de 3 meses, 6 meses ou 1 ano.",
+  "Liberação manual do aluno com prazo de 1 mes, 3 meses, 6 meses ou 1 ano.",
   "Área do aluno com videoaulas Vimeo, indicadores e PDFs.",
 ];
 
@@ -29,7 +29,7 @@ const flow = [
   },
   {
     title: "2. Aprove e escolha o prazo",
-    text: "No painel admin você aprova a matrícula e define se o acesso será por 3 meses, 6 meses ou 1 ano.",
+    text: "No painel admin você aprova a matrícula e define se o acesso será por 1 mes, 3 meses, 6 meses ou 1 ano.",
   },
   {
     title: "3. O aluno acessa a área protegida",
@@ -46,7 +46,7 @@ const pillars = [
   {
     label: "Liberação",
     title: "Aprovação manual com prazo flexível",
-    text: "Você decide quem entra e escolhe se o acesso dura 3 meses, 6 meses ou 1 ano.",
+    text: "Você decide quem entra e escolhe se o acesso dura 1 mes, 3 meses, 6 meses ou 1 ano.",
   },
   {
     label: "Consumo",
@@ -141,7 +141,7 @@ export default function Home() {
             <Card className="border-border/60 bg-white/70 shadow-sm">
               <CardContent className="p-5">
                 <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Acesso</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-900">3, 6 ou 12</p>
+                <p className="mt-2 text-3xl font-semibold text-slate-900">1, 3, 6 ou 12</p>
               </CardContent>
             </Card>
             <Card className="border-border/60 bg-white/70 shadow-sm">
@@ -179,7 +179,7 @@ export default function Home() {
                 <CardContent className="p-5">
                     <CalendarClock className="mb-3 h-5 w-5 text-emerald-300" />
                     <p className="text-sm text-white/70">Prazo configuravel</p>
-                    <p className="mt-2 text-2xl font-semibold">3, 6 ou 12 meses</p>
+                    <p className="mt-2 text-2xl font-semibold">1, 3, 6 ou 12 meses</p>
                   </CardContent>
                 </Card>
                 <Card className="border-white/10 bg-white/5 text-white">
@@ -264,7 +264,7 @@ export default function Home() {
             <div className="flex flex-col gap-4 rounded-[1.8rem] border border-white/10 bg-white/5 p-6">
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                 <span className="text-sm uppercase tracking-[0.22em] text-white/55">Prazos</span>
-                <span className="text-lg font-semibold">3 meses · 6 meses · 1 ano</span>
+                <span className="text-lg font-semibold">1 mes · 3 meses · 6 meses · 1 ano</span>
               </div>
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                 <span className="text-sm uppercase tracking-[0.22em] text-white/55">Escopo</span>
@@ -350,3 +350,4 @@ export default function Home() {
     </div>
   );
 }
+

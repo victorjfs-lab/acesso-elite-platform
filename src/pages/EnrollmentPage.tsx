@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 const steps = [
   "Aluno envia os dados e cria a propria senha.",
   "Pedido entra no painel admin para aprovacao.",
-  "Aprovação libera o curso com o prazo que você escolher: 3 meses, 6 meses ou 1 ano.",
+  "Aprovacao libera o curso com o prazo que voce escolher: 1 mes, 3 meses, 6 meses ou 1 ano.",
 ];
 
 export default function EnrollmentPage() {
@@ -281,8 +281,8 @@ export default function EnrollmentPage() {
 
                   <div className="rounded-2xl border border-border/70 bg-secondary/40 p-4 text-sm leading-6 text-muted-foreground">
                     Este cadastro já registra o login do aluno, mas o curso só é liberado depois da
-                    aprovação no admin. A partir da liberação, você escolhe se o acesso dura 3
-                    meses, 6 meses ou 1 ano.
+                    aprovação no admin. A partir da liberação, você escolhe se o acesso dura 1
+                    mes, 3 meses, 6 meses ou 1 ano.
                   </div>
 
                   <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
@@ -297,3 +297,5 @@ export default function EnrollmentPage() {
     </div>
   );
 }
+
+

@@ -133,7 +133,7 @@ export default function EliteAccessPage() {
                 <div className="rounded-[1.35rem] border border-white/10 bg-white/5 p-4">
                   <GraduationCap className="mb-2 h-4.5 w-4.5 text-amber-200" />
                   <p className="text-xs text-white/65">Acesso</p>
-                  <p className="mt-2 text-[2rem] font-semibold leading-none">365 dias</p>
+                  <p className="mt-2 text-[2rem] font-semibold leading-none">1, 3, 6 ou 12 meses</p>
                 </div>
                 <div className="rounded-[1.35rem] border border-white/10 bg-white/5 p-4">
                   <Video className="mb-2 h-4.5 w-4.5 text-sky-300" />
@@ -204,7 +204,7 @@ export default function EliteAccessPage() {
                     <p className="text-xl font-semibold text-emerald-900">Pedido enviado</p>
                     <p className="mt-2 leading-7 text-emerald-800">
                       Seu cadastro foi enviado com sucesso. Assim que o acesso for aprovado, você
-                      recebe o pacote completo.
+                      recebe o pacote completo pelo prazo escolhido no admin.
                     </p>
                   </div>
                   <Button asChild>
@@ -295,3 +295,4 @@ export default function EliteAccessPage() {
     </div>
   );
 }
+

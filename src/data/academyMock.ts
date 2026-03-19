@@ -74,7 +74,7 @@ export const demoCourses: Course[] = [
       "https://images.unsplash.com/photo-1642790106117-e829e14a795f?auto=format&fit=crop&w=1200&q=80",
     instructorName: "Victor Ferreira",
     durationLabel: "Acesso multicurso",
-    supportLabel: "3, 6 ou 12 meses",
+    supportLabel: "1, 3, 6 ou 12 meses",
     accessDurationDays: 365,
     priceLabel: "Acesso especial",
     eliteSortOrder: 999,
@@ -429,3 +429,4 @@ export const demoSeedState = {
   requests: demoRequests,
   enrollments: demoEnrollments,
 };
+

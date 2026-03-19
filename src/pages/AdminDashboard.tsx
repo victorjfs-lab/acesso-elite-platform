@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const statIcons = [Users, CalendarClock, TimerReset, GraduationCap];
 const accessOptions = [
+  { label: "1 mes", value: 30 },
   { label: "3 meses", value: 90 },
   { label: "6 meses", value: 180 },
   { label: "1 ano", value: 365 },
@@ -201,7 +202,7 @@ export default function AdminDashboard() {
           <CardHeader>
             <CardTitle>Solicitacoes de matricula</CardTitle>
             <CardDescription>
-              Aprove aqui e escolha se o acesso sera por 3 meses, 6 meses ou 1 ano.
+              Aprove aqui e escolha se o acesso sera por 1 mes, 3 meses, 6 meses ou 1 ano.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -360,3 +361,5 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+
