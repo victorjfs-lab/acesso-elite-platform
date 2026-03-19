@@ -27,39 +27,6 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         input: path.resolve(__dirname, "index.html"),
-        output: {
-          manualChunks(id) {
-            if (!id.includes("node_modules")) {
-              return;
-            }
-
-            if (
-              id.includes("react") ||
-              id.includes("scheduler") ||
-              id.includes("react-router")
-            ) {
-              return "react-vendor";
-            }
-
-            if (id.includes("@tanstack")) {
-              return "query-vendor";
-            }
-
-            if (id.includes("@supabase")) {
-              return "supabase-vendor";
-            }
-
-            if (id.includes("@radix-ui")) {
-              return "radix-vendor";
-            }
-
-            if (id.includes("lucide-react")) {
-              return "icons-vendor";
-            }
-
-            return "vendor";
-          },
-        },
       },
     },
     resolve: {
