@@ -1,0 +1,5 @@
+[functions.create-student-enrollment]
+verify_jwt = false
+
+[functions.import-course-content]
+verify_jwt = false

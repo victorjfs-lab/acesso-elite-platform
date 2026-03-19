@@ -1,0 +1,119 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 42 30% 97%;
+    --foreground: 206 28% 14%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 206 28% 14%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 206 28% 14%;
+
+    --primary: 40 72% 58%;
+    --primary-foreground: 210 18% 10%;
+
+    --secondary: 35 32% 91%;
+    --secondary-foreground: 206 28% 14%;
+
+    --muted: 38 18% 93%;
+    --muted-foreground: 206 11% 42%;
+
+    --accent: 40 72% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 18% 86%;
+    --input: 35 18% 86%;
+    --ring: 192 46% 27%;
+
+    --radius: 0.75rem;
+
+    --whatsapp: 142 70% 45%;
+    --whatsapp-foreground: 0 0% 100%;
+
+    --stage-novo: 210 80% 55%;
+    --stage-contato: 195 60% 45%;
+    --stage-espera: 35 80% 55%;
+    --stage-acompanhamento: 280 50% 55%;
+    --stage-proposta: 152 50% 42%;
+    --stage-fechado: 152 70% 35%;
+    --stage-perdido: 0 60% 50%;
+
+    --sidebar-background: 220 17% 12%;
+    --sidebar-foreground: 220 12% 85%;
+    --sidebar-primary: 40 72% 58%;
+    --sidebar-primary-foreground: 220 17% 12%;
+    --sidebar-accent: 220 14% 18%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 12% 20%;
+    --sidebar-ring: 40 72% 58%;
+    --sidebar-muted: 220 10% 55%;
+  }
+
+  .dark {
+    --background: 210 20% 10%;
+    --foreground: 40 15% 90%;
+    --card: 210 18% 14%;
+    --card-foreground: 40 15% 90%;
+    --popover: 210 18% 14%;
+    --popover-foreground: 40 15% 90%;
+    --primary: 40 72% 58%;
+    --primary-foreground: 210 20% 10%;
+    --secondary: 210 15% 20%;
+    --secondary-foreground: 40 15% 90%;
+    --muted: 210 15% 18%;
+    --muted-foreground: 210 10% 55%;
+    --accent: 40 72% 58%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 15% 22%;
+    --input: 210 15% 22%;
+    --ring: 195 50% 50%;
+    --sidebar-background: 220 20% 8%;
+    --sidebar-foreground: 220 10% 78%;
+    --sidebar-primary: 40 72% 58%;
+    --sidebar-primary-foreground: 210 25% 8%;
+    --sidebar-accent: 220 16% 14%;
+    --sidebar-accent-foreground: 210 10% 85%;
+    --sidebar-border: 220 12% 16%;
+    --sidebar-ring: 40 72% 58%;
+    --sidebar-muted: 220 8% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: "Inter", sans-serif;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-sm;
+  }
+
+  .stage-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+}
