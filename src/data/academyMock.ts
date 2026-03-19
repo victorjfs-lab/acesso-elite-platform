@@ -194,7 +194,7 @@ export const demoLessons: CourseLesson[] = [
     summary: "Aula inicial para mostrar ao aluno por onde comecar, como abrir os cursos e como seguir a trilha do Acesso Elite.",
     durationLabel: "4 min",
     lessonOrder: 1,
-    vimeoUrl: "",
+    vimeoUrl: "https://vimeo.com/1175219673?fl=pl&fe=cm",
   },
   {
     id: "lesson-radar-01",

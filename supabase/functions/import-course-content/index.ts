@@ -53,9 +53,9 @@ const aulaMestreModules: ModuleSeed[] = [
     lessons: [
       {
         title: "Como navegar pela plataforma",
-        url: "",
+        url: "https://vimeo.com/1175219673?fl=pl&fe=cm",
         summary:
-          "Use esta aula como a entrada obrigatoria do Acesso Elite. Edite o video e a descricao no painel assim que o conteudo estiver pronto.",
+          "Aula obrigatoria de entrada para mostrar o passo a passo da plataforma, a ordem ideal de consumo e como aproveitar o Acesso Elite.",
       },
     ],
   },
