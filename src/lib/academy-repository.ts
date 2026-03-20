@@ -56,12 +56,43 @@ type CourseProgressSnapshot = {
   startedLessonAtById: Record<string, string>;
 };
 
+type SupabaseLikeError = {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
 
+function toAppError(error: unknown, fallbackMessage: string) {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  if (error && typeof error === "object") {
+    const candidate = error as SupabaseLikeError;
+    const parts = [candidate.message, candidate.details, candidate.hint].filter(Boolean);
+    return new Error(parts.join(" ").trim() || fallbackMessage);
+  }
+
+  return new Error(fallbackMessage);
+}
+
 function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function sanitizeFileName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase();
 }
 
 function getExpiresAt(days: number, grantedAtIso = nowIso()) {
@@ -2010,13 +2041,13 @@ export const academyRepository = {
             summary: input.summary.trim(),
             duration_label: input.durationLabel,
             lesson_order: lessonOrder,
-            vimeo_url: input.vimeoUrl,
+            vimeo_url: input.vimeoUrl?.trim() ?? "",
           })
           .select("*")
           .single();
 
         if (result.error) {
-          throw result.error;
+          throw toAppError(result.error, "Nao foi possivel criar a aula.");
         }
 
         return {
@@ -2043,7 +2074,7 @@ export const academyRepository = {
           summary: input.summary.trim(),
           durationLabel: input.durationLabel,
           lessonOrder,
-          vimeoUrl: input.vimeoUrl,
+          vimeoUrl: input.vimeoUrl?.trim() ?? "",
         };
 
         updateDemoState((currentState) => ({
@@ -2078,7 +2109,10 @@ export const academyRepository = {
           .single();
 
         if (result.error) {
-          throw result.error;
+          throw toAppError(
+            result.error,
+            "Nao foi possivel criar o material. Verifique o schema do banco.",
+          );
         }
 
         return {
@@ -2111,6 +2145,42 @@ export const academyRepository = {
 
         return resource;
       },
+    );
+  },
+
+  async uploadCourseResourceFile(input: { courseId: string; file: File }) {
+    return trySupabase(
+      async () => {
+        if (!supabase) {
+          throw new Error("Supabase indisponivel");
+        }
+
+        const ext = input.file.name.includes(".") ? input.file.name.split(".").pop() ?? "" : "";
+        const baseName = ext
+          ? input.file.name.slice(0, -(ext.length + 1))
+          : input.file.name;
+        const safeBaseName = sanitizeFileName(baseName) || "arquivo";
+        const safeExt = sanitizeFileName(ext);
+        const fileName = safeExt ? `${safeBaseName}.${safeExt}` : safeBaseName;
+        const storagePath = `${slugify(input.courseId)}/${Date.now()}-${fileName}`;
+
+        const uploadResult = await supabase.storage
+          .from("course-assets")
+          .upload(storagePath, input.file, {
+            cacheControl: "3600",
+            upsert: false,
+          });
+
+        if (uploadResult.error) {
+          throw toAppError(
+            uploadResult.error,
+            "Nao foi possivel enviar o arquivo. Configure o bucket course-assets no Supabase.",
+          );
+        }
+
+        return supabase.storage.from("course-assets").getPublicUrl(storagePath).data.publicUrl;
+      },
+      async () => URL.createObjectURL(input.file),
     );
   },
 

@@ -491,6 +491,14 @@ export default function CoursePlayer() {
                     allow="autoplay; fullscreen; picture-in-picture"
                     allowFullScreen
                   />
+                ) : selectedLesson &&
+                  selectedLessonAvailable &&
+                  !selectedLessonMedia.externalUrl &&
+                  visibleResources.length > 0 ? (
+                  <div className="flex h-full items-center justify-center px-6 text-center text-sm text-white/60">
+                    Esta aula foi criada para disponibilizar materiais de apoio. Veja os arquivos
+                    logo abaixo.
+                  </div>
                 ) : selectedLesson && selectedLessonAvailable && !selectedLessonMedia.externalUrl ? (
                   <div className="flex h-full items-center justify-center px-6 text-center text-sm text-white/60">
                     Esta aula ja esta criada na trilha, mas o video ainda nao foi definido no editor.

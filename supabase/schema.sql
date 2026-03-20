@@ -87,10 +87,13 @@ create table if not exists public.course_lessons (
   summary text not null,
   duration_label text not null,
   lesson_order integer not null,
-  vimeo_url text not null,
+  vimeo_url text not null default '',
   created_at timestamptz not null default timezone('utc', now()),
   unique (module_id, lesson_order)
 );
+
+alter table public.course_lessons
+  alter column vimeo_url set default '';
 
 create table if not exists public.course_resources (
   id uuid primary key default gen_random_uuid(),
@@ -382,6 +385,43 @@ create policy "authenticated users can manage enrollments"
 on public.enrollments for all
 using (auth.role() = 'authenticated')
 with check (auth.role() = 'authenticated');
+
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('course-assets', 'course-assets', true, 52428800)
+on conflict (id) do nothing;
+
+drop policy if exists "authenticated users can upload course assets" on storage.objects;
+create policy "authenticated users can upload course assets"
+on storage.objects for insert
+with check (
+  bucket_id = 'course-assets'
+  and auth.role() = 'authenticated'
+);
+
+drop policy if exists "authenticated users can update course assets" on storage.objects;
+create policy "authenticated users can update course assets"
+on storage.objects for update
+using (
+  bucket_id = 'course-assets'
+  and auth.role() = 'authenticated'
+)
+with check (
+  bucket_id = 'course-assets'
+  and auth.role() = 'authenticated'
+);
+
+drop policy if exists "public can read course assets" on storage.objects;
+create policy "public can read course assets"
+on storage.objects for select
+using (bucket_id = 'course-assets');
+
+drop policy if exists "authenticated users can delete course assets" on storage.objects;
+create policy "authenticated users can delete course assets"
+on storage.objects for delete
+using (
+  bucket_id = 'course-assets'
+  and auth.role() = 'authenticated'
+);
 
 drop policy if exists "students can read own lesson progress" on public.lesson_progress;
 create policy "students can read own lesson progress"

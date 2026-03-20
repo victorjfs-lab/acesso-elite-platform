@@ -60,6 +60,8 @@ export default function AdminCourseEditor() {
   const [resourceDescription, setResourceDescription] = useState("");
   const [resourceKind, setResourceKind] = useState<CourseResourceKind>("pdf");
   const [resourceUrl, setResourceUrl] = useState("");
+  const [resourceFile, setResourceFile] = useState<File | null>(null);
+  const [resourceFileInputKey, setResourceFileInputKey] = useState(0);
   const [resourceModuleId, setResourceModuleId] = useState("");
   const [resourceLessonId, setResourceLessonId] = useState("");
   const [linkTitle, setLinkTitle] = useState("");
@@ -186,22 +188,34 @@ export default function AdminCourseEditor() {
   });
 
   const createResourceMutation = useMutation({
-    mutationFn: () =>
-      academyRepository.createCourseResource({
+    mutationFn: async () => {
+      let fileUrl = resourceUrl.trim();
+
+      if (!fileUrl && resourceFile) {
+        fileUrl = await academyRepository.uploadCourseResourceFile({
+          courseId,
+          file: resourceFile,
+        });
+      }
+
+      return academyRepository.createCourseResource({
         courseId,
         moduleId: resourceModuleId || null,
         lessonId: resourceLessonId || null,
         title: resourceTitle,
         description: resourceDescription,
         kind: resourceKind,
-        fileUrl: resourceUrl,
-      }),
+        fileUrl,
+      });
+    },
     onSuccess: async () => {
       await refreshEditor();
       setResourceTitle("");
       setResourceDescription("");
       setResourceKind("pdf");
       setResourceUrl("");
+      setResourceFile(null);
+      setResourceFileInputKey((current) => current + 1);
       setResourceLessonId("");
       toast({
         title: "Material criado",
@@ -734,21 +748,23 @@ export default function AdminCourseEditor() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lesson-vimeo">Link da aula</Label>
+                    <Label htmlFor="lesson-vimeo">Link da aula (opcional)</Label>
                     <Input
                       id="lesson-vimeo"
                       value={lessonVimeoUrl}
                       onChange={(event) => setLessonVimeoUrl(event.target.value)}
                       placeholder="https://vimeo.com/... ou https://youtu.be/... ou outro link"
                     />
+                    <p className="text-xs leading-5 text-muted-foreground">
+                      Se esta aula for apenas para materiais, pode deixar esse campo em branco.
+                    </p>
                   </div>
                 </div>
                 <Button
                   disabled={
                     createLessonMutation.isPending ||
                     !lessonModuleId ||
-                    !lessonTitle.trim() ||
-                    !lessonVimeoUrl.trim()
+                    !lessonTitle.trim()
                   }
                   onClick={() => createLessonMutation.mutate()}
                 >
@@ -840,9 +856,22 @@ export default function AdminCourseEditor() {
                       id="resource-url"
                       value={resourceUrl}
                       onChange={(event) => setResourceUrl(event.target.value)}
-                      placeholder="https://..."
+                      placeholder="https://... (opcional se voce enviar um arquivo abaixo)"
                     />
                   </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="resource-file">Arquivo do material (opcional)</Label>
+                  <Input
+                    key={resourceFileInputKey}
+                    id="resource-file"
+                    type="file"
+                    onChange={(event) => setResourceFile(event.target.files?.[0] ?? null)}
+                    accept=".pdf,.zip,.rar,.7z,.xls,.xlsx,.csv,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.webp"
+                  />
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Voce pode colar um link ou enviar o arquivo para o storage da plataforma.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="resource-description">Descricao</Label>
@@ -858,7 +887,7 @@ export default function AdminCourseEditor() {
                     createResourceMutation.isPending ||
                     !resourceTitle.trim() ||
                     !resourceDescription.trim() ||
-                    !resourceUrl.trim()
+                    (!resourceUrl.trim() && !resourceFile)
                   }
                   onClick={() => createResourceMutation.mutate()}
                 >
@@ -1148,7 +1177,9 @@ export default function AdminCourseEditor() {
                           </div>
                           <div className="mt-4 flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-primary">
                             <PlayCircle className="h-3.5 w-3.5" />
-                            Link da aula configurado
+                            {lesson.vimeoUrl?.trim()
+                              ? "Link da aula configurado"
+                              : "Aula criada sem video"}
                           </div>
                         </div>
                       ))}

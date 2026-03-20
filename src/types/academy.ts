@@ -197,7 +197,7 @@ export type CreateCourseLessonInput = {
   title: string;
   summary: string;
   durationLabel: string;
-  vimeoUrl: string;
+  vimeoUrl?: string;
   lessonOrder?: number;
 };
 
