@@ -42,7 +42,7 @@ export default function EliteAccessPage() {
     if (password.trim().length < 6) {
       toast({
         title: "Senha muito curta",
-        description: "Use pelo menos 6 caracteres para a senha do aluno.",
+        description: "Use pelo menos 6 caracteres para sua senha.",
         variant: "destructive",
       });
       return;
@@ -71,7 +71,7 @@ export default function EliteAccessPage() {
       setIsSubmitted(true);
       toast({
         title: "Cadastro elite enviado",
-        description: "O pedido entrou para aprovação com acesso a todos os cursos publicados.",
+        description: "Seu pedido foi recebido com acesso aos cursos publicados.",
       });
     } catch (error) {
       toast({
@@ -203,8 +203,8 @@ export default function EliteAccessPage() {
                   <div>
                     <p className="text-xl font-semibold text-emerald-900">Pedido enviado</p>
                     <p className="mt-2 leading-7 text-emerald-800">
-                      Seu cadastro foi enviado com sucesso. Assim que o acesso for aprovado, você
-                      recebe o pacote completo pelo prazo escolhido no admin.
+                      Seu cadastro foi enviado com sucesso. Assim que o acesso estiver disponível,
+                      você poderá entrar no portal com o email e a senha cadastrados.
                     </p>
                   </div>
                   <Button asChild>

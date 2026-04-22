@@ -18,9 +18,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 const steps = [
-  "Aluno envia os dados e cria a propria senha.",
-  "Pedido entra no painel admin para aprovacao.",
-  "Aprovacao libera o curso com o prazo que voce escolher: 1 mes, 3 meses, 6 meses ou 1 ano.",
+  "Crie seu acesso com email e senha.",
+  "Entre pelo portal para acompanhar suas aulas.",
+  "Acesse os materiais de apoio em um ambiente protegido.",
 ];
 
 export default function EnrollmentPage() {
@@ -46,7 +46,7 @@ export default function EnrollmentPage() {
     if (password.length < 6) {
       toast({
         title: "Senha muito curta",
-        description: "Use pelo menos 6 caracteres para a senha do aluno.",
+        description: "Use pelo menos 6 caracteres para sua senha.",
         variant: "destructive",
       });
       return;
@@ -75,7 +75,7 @@ export default function EnrollmentPage() {
       setIsSubmitted(true);
       toast({
         title: "Cadastro enviado",
-        description: "O login do aluno foi preparado e a solicitação foi enviada para aprovação.",
+        description: "Seu pedido foi recebido com sucesso.",
       });
     } catch (error) {
       toast({
@@ -105,7 +105,7 @@ export default function EnrollmentPage() {
           <CardHeader>
             <CardTitle>Link de cadastro não encontrado</CardTitle>
             <CardDescription>
-              Confira o link enviado ao aluno ou crie um novo link de matrícula no painel admin.
+              Confira se o link foi digitado corretamente ou solicite um novo acesso.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -166,7 +166,7 @@ export default function EnrollmentPage() {
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                 <div className="flex items-center gap-2 text-sm uppercase tracking-[0.24em] text-white/60">
                   <ShieldCheck className="h-4 w-4 text-emerald-300" />
-                  Fluxo da matrícula
+                  Seu acesso
                 </div>
                 <div className="mt-4 space-y-3">
                   {steps.map((step, index) => (
@@ -186,8 +186,7 @@ export default function EnrollmentPage() {
             <CardHeader className="space-y-3">
               <CardTitle className="text-3xl">Cadastro do aluno</CardTitle>
               <CardDescription>
-                O aluno envia os dados, cria a senha dele, você aprova no painel admin e o
-                sistema libera o prazo que você definir.
+                Preencha seus dados para criar seu acesso ao portal.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -197,9 +196,8 @@ export default function EnrollmentPage() {
                   <div>
                     <p className="text-xl font-semibold text-emerald-900">Solicitação enviada</p>
                     <p className="mt-2 leading-7 text-emerald-800">
-                      Agora basta aprovar no painel admin. Depois da liberação, o aluno entra com
-                      o email e a senha que acabou de cadastrar para acessar o curso pelo prazo
-                      escolhido no admin.
+                      Seu cadastro foi enviado com sucesso. Assim que o acesso estiver disponível,
+                      entre com o email e a senha que acabou de cadastrar.
                     </p>
                   </div>
                   <Button asChild>
@@ -280,9 +278,8 @@ export default function EnrollmentPage() {
                   </div>
 
                   <div className="rounded-2xl border border-border/70 bg-secondary/40 p-4 text-sm leading-6 text-muted-foreground">
-                    Este cadastro já registra o login do aluno, mas o curso só é liberado depois da
-                    aprovação no admin. A partir da liberação, você escolhe se o acesso dura 1
-                    mes, 3 meses, 6 meses ou 1 ano.
+                    Guarde seu email e senha. Eles serão usados para entrar no portal e acessar
+                    suas aulas, materiais e atualizações.
                   </div>
 
                   <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
