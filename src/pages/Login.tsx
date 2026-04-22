@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
-import { GraduationCap, KeyRound, Lock, LogIn, Mail, ShieldCheck } from "lucide-react";
+import { GraduationCap, Lock, LogIn, Mail, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
-  const { isAuthenticated, isDemoMode, isLoading, signIn } = useAuth();
+  const { isAuthenticated, isLoading, signIn } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -57,30 +57,30 @@ export default function Login() {
             <div className="bg-[radial-gradient(circle_at_top_right,rgba(45,212,191,0.18),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(251,191,36,0.14),transparent_35%)] p-10">
               <p className="text-xs uppercase tracking-[0.34em] text-emerald-300">Área restrita</p>
               <h1 className="mt-4 text-5xl leading-tight">
-                Login unificado para aluno e admin.
+                Acesse sua área de estudos.
               </h1>
               <p className="mt-5 max-w-xl text-lg leading-8 text-white/72">
-                O aluno entra aqui para assistir as aulas, baixar PDFs e acompanhar indicadores.
-                O admin entra para aprovar acessos e renovar matriculas.
+                Entre para continuar suas aulas, baixar materiais e acompanhar sua evolução dentro
+                do portal.
               </p>
 
               <div className="mt-10 grid gap-4">
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                   <div className="flex items-center gap-2 text-sm font-medium text-emerald-300">
                     <ShieldCheck className="h-4 w-4" />
-                    Perfil admin
+                    Portal protegido
                   </div>
                   <p className="mt-3 text-sm leading-6 text-white/72">
-                    Aprova matrículas, controla expiração e organiza links por turma.
+                    Seu acesso fica seguro com email e senha cadastrados.
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                   <div className="flex items-center gap-2 text-sm font-medium text-amber-300">
                     <GraduationCap className="h-4 w-4" />
-                    Perfil aluno
+                    Área do aluno
                   </div>
                   <p className="mt-3 text-sm leading-6 text-white/72">
-                    Consome os cursos liberados enquanto o prazo da matrícula estiver ativo.
+                    Aulas, materiais e indicadores reunidos em uma experiência simples.
                   </p>
                 </div>
               </div>
@@ -94,18 +94,10 @@ export default function Login() {
               </div>
               <CardTitle className="text-3xl">Entrar no portal</CardTitle>
               <CardDescription>
-                Use suas credenciais para abrir a área do aluno ou o painel administrativo.
+                Use seu email e senha para continuar seus estudos.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {isDemoMode ? (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-7 text-emerald-900">
-                  <p className="font-semibold">Modo demonstração ativo</p>
-                  <p>Admin: admin@academia.local / admin123</p>
-                  <p>Aluno: marina@aluno.local / acesso123</p>
-                </div>
-              ) : null}
-
               <form className="space-y-5" onSubmit={(event) => void handleSubmit(event)}>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
@@ -146,14 +138,6 @@ export default function Login() {
                 </Button>
               </form>
 
-              <div className="rounded-2xl border border-border/70 bg-secondary/35 p-4 text-sm leading-7 text-muted-foreground">
-                <div className="mb-2 flex items-center gap-2 font-medium text-foreground">
-                  <KeyRound className="h-4 w-4 text-primary" />
-                  Fluxo recomendado para publicar
-                </div>
-                Criar usuário no Supabase Auth, aprovar a matrícula no painel admin e deixar a data
-                de expiração controlar o acesso automaticamente.
-              </div>
             </CardContent>
           </Card>
         </div>
