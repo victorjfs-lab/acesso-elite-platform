@@ -21,6 +21,7 @@ import type {
   CourseResource,
   CreateCourseInput,
   CreateCourseLessonInput,
+  CreateManualStudentInput,
   CreateCourseModuleInput,
   CreateCourseResourceInput,
   CreateEnrollmentLinkInput,
@@ -1724,6 +1725,125 @@ export const academyRepository = {
             enrollments: [...nextEnrollments, ...untouchedEnrollments],
           };
         });
+      },
+    );
+  },
+
+  async createManualStudent(input: CreateManualStudentInput) {
+    return trySupabase(
+      async () => {
+        if (!supabase) {
+          throw new Error("Supabase indisponivel");
+        }
+
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const currentSession = await supabase.auth.getSession();
+        const accessToken = currentSession.data.session?.access_token;
+
+        if (!baseUrl || !accessToken) {
+          throw new Error("Sessao administrativa indisponivel. Entre novamente para cadastrar alunos.");
+        }
+
+        const response = await fetch(`${baseUrl}/functions/v1/create-manual-student`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            fullName: input.fullName,
+            email: input.email,
+            whatsapp: input.whatsapp ?? "",
+            password: input.password,
+            courseId: input.courseId,
+            durationDays: input.durationDays,
+          }),
+        });
+
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string; success?: boolean }
+          | null;
+
+        if (!response.ok) {
+          throw new Error(
+            payload?.error ??
+              "Nao foi possivel cadastrar o aluno manualmente. Verifique a funcao create-manual-student no Supabase.",
+          );
+        }
+
+        return payload;
+      },
+      async () => {
+        const state = getDemoCollections();
+        const normalizedEmail = input.email.trim().toLowerCase();
+        const course = state.courses.find((item) => item.id === input.courseId);
+
+        if (!course) {
+          throw new Error("Curso nao encontrado");
+        }
+
+        const grantedAt = nowIso();
+        const expiresAt = getExpiresAt(input.durationDays, grantedAt);
+        let student = state.accounts.find((account) => account.email.toLowerCase() === normalizedEmail);
+
+        if (!student) {
+          student = {
+            id: createId("user"),
+            authUserId: null,
+            email: normalizedEmail,
+            fullName: input.fullName.trim(),
+            role: "student",
+            headline: "Aluno cadastrado manualmente",
+            avatarUrl: null,
+            demoPassword: input.password,
+            createdAt: grantedAt,
+          };
+        }
+
+        const existingEnrollment = state.enrollments.find(
+          (item) => item.studentId === student!.id && item.courseId === input.courseId,
+        );
+
+        updateDemoState((currentState) => ({
+          ...currentState,
+          accounts: currentState.accounts.some((account) => account.email.toLowerCase() === normalizedEmail)
+            ? currentState.accounts.map((account) =>
+                account.email.toLowerCase() === normalizedEmail
+                  ? {
+                      ...account,
+                      fullName: input.fullName.trim(),
+                      demoPassword: input.password,
+                    }
+                  : account,
+              )
+            : [student!, ...currentState.accounts],
+          enrollments: existingEnrollment
+            ? currentState.enrollments.map((item) =>
+                item.id === existingEnrollment.id
+                  ? {
+                      ...item,
+                      grantedAt,
+                      expiresAt,
+                      sourceSlug: "manual-admin",
+                      status: "active",
+                    }
+                  : item,
+              )
+            : [
+                {
+                  id: createId("enrollment"),
+                  courseId: input.courseId,
+                  studentId: student!.id,
+                  grantedAt,
+                  expiresAt,
+                  sourceSlug: "manual-admin",
+                  status: "active",
+                },
+                ...currentState.enrollments,
+              ],
+        }));
+
+        return { success: true };
       },
     );
   },

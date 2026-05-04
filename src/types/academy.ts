@@ -173,6 +173,15 @@ export type EnrollmentFormInput = {
   password: string;
 };
 
+export type CreateManualStudentInput = {
+  fullName: string;
+  email: string;
+  whatsapp?: string;
+  password: string;
+  courseId: string;
+  durationDays: number;
+};
+
 export type CreateCourseInput = {
   title: string;
   subtitle: string;
