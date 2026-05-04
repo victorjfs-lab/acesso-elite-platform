@@ -144,6 +144,42 @@ export type AdminOverviewData = {
   students: AdminStudentAccess[];
 };
 
+export type AdminReportStudentCourse = {
+  account: AcademyAccount;
+  course: Course;
+  enrollment: Enrollment;
+  lessonCount: number;
+  completedLessons: number;
+  progressPercent: number;
+  resourceCount: number;
+  indicatorCount: number;
+  downloadedResourceCount: number;
+  downloadedIndicatorCount: number;
+  daysRemaining: number;
+  lastActivityAt: string | null;
+};
+
+export type AdminReportCourse = {
+  course: Course;
+  studentCount: number;
+  lessonCount: number;
+  resourceCount: number;
+  indicatorCount: number;
+  averageProgressPercent: number;
+  indicatorDownloadPercent: number;
+};
+
+export type AdminReportsData = {
+  stats: {
+    activeStudents: number;
+    totalEnrollments: number;
+    averageCompletionPercent: number;
+    indicatorDownloadPercent: number;
+  };
+  courses: AdminReportCourse[];
+  studentCourses: AdminReportStudentCourse[];
+};
+
 export type AdminCourseStructure = {
   course: Course;
   modules: CourseModule[];

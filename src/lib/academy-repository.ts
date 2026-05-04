@@ -13,6 +13,7 @@ import type {
   AcademyAccount,
   AdminCourseStructure,
   AdminOverviewData,
+  AdminReportsData,
   AdminStudentAccess,
   Course,
   CourseDetailData,
@@ -50,6 +51,13 @@ type LessonProgressRecord = {
   lessonId: string;
   startedAt: string | null;
   completedAt: string | null;
+};
+
+type ResourceDownloadRecord = {
+  studentId: string;
+  courseId: string;
+  resourceId: string;
+  downloadedAt: string;
 };
 
 type CourseProgressSnapshot = {
@@ -493,6 +501,166 @@ function buildAdminCourseStructures(
     }));
 }
 
+function average(values: number[]) {
+  return values.length > 0
+    ? Math.round(values.reduce((total, value) => total + value, 0) / values.length)
+    : 0;
+}
+
+function percent(part: number, total: number) {
+  return total > 0 ? Math.round((part / total) * 100) : 0;
+}
+
+function getLatestIso(values: Array<string | null | undefined>) {
+  const sorted = values
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+  return sorted[0] ?? null;
+}
+
+function buildAdminReports(
+  accounts: AcademyAccount[],
+  courses: Course[],
+  modules: CourseModule[],
+  lessons: CourseLesson[],
+  resources: CourseResource[],
+  enrollments: Enrollment[],
+  lessonProgress: LessonProgressRecord[],
+  resourceDownloads: ResourceDownloadRecord[],
+): AdminReportsData {
+  const studentsById = new Map(
+    accounts.filter((account) => account.role === "student").map((account) => [account.id, account]),
+  );
+  const coursesById = new Map(courses.map((course) => [course.id, course]));
+  const courseIdByModuleId = new Map(modules.map((moduleItem) => [moduleItem.id, moduleItem.courseId]));
+  const lessonIdsByCourseId = new Map<string, Set<string>>();
+
+  for (const lesson of lessons) {
+    const courseId = courseIdByModuleId.get(lesson.moduleId);
+
+    if (!courseId) {
+      continue;
+    }
+
+    if (!lessonIdsByCourseId.has(courseId)) {
+      lessonIdsByCourseId.set(courseId, new Set());
+    }
+
+    lessonIdsByCourseId.get(courseId)!.add(lesson.id);
+  }
+
+  const resourcesByCourseId = new Map<string, CourseResource[]>();
+
+  for (const resource of resources) {
+    resourcesByCourseId.set(resource.courseId, [
+      ...(resourcesByCourseId.get(resource.courseId) ?? []),
+      resource,
+    ]);
+  }
+
+  const normalizedEnrollments = enrollments.map(normalizeEnrollment);
+  const studentCourses = normalizedEnrollments
+    .map((enrollment) => {
+      const account = studentsById.get(enrollment.studentId);
+      const course = coursesById.get(enrollment.courseId);
+
+      if (!account || !course) {
+        return null;
+      }
+
+      const courseLessonIds = lessonIdsByCourseId.get(course.id) ?? new Set<string>();
+      const courseResources = resourcesByCourseId.get(course.id) ?? [];
+      const indicatorResourceIds = new Set(
+        courseResources.filter((resource) => resource.kind === "indicador").map((resource) => resource.id),
+      );
+      const completedProgress = lessonProgress.filter(
+        (item) =>
+          item.studentId === account.id &&
+          item.courseId === course.id &&
+          courseLessonIds.has(item.lessonId) &&
+          Boolean(item.completedAt),
+      );
+      const downloads = resourceDownloads.filter(
+        (item) => item.studentId === account.id && item.courseId === course.id,
+      );
+      const downloadedResourceIds = new Set(downloads.map((item) => item.resourceId));
+      const downloadedIndicatorIds = new Set(
+        downloads
+          .filter((item) => indicatorResourceIds.has(item.resourceId))
+          .map((item) => item.resourceId),
+      );
+      const lessonCount = courseLessonIds.size;
+      const completedLessons = new Set(completedProgress.map((item) => item.lessonId)).size;
+
+      return {
+        account,
+        course,
+        enrollment,
+        lessonCount,
+        completedLessons,
+        progressPercent: percent(completedLessons, lessonCount),
+        resourceCount: courseResources.length,
+        indicatorCount: indicatorResourceIds.size,
+        downloadedResourceCount: downloadedResourceIds.size,
+        downloadedIndicatorCount: downloadedIndicatorIds.size,
+        daysRemaining: Math.max(
+          0,
+          differenceInCalendarDays(new Date(enrollment.expiresAt), new Date()),
+        ),
+        lastActivityAt: getLatestIso([
+          enrollment.grantedAt,
+          ...completedProgress.map((item) => item.completedAt),
+          ...lessonProgress
+            .filter((item) => item.studentId === account.id && item.courseId === course.id)
+            .map((item) => item.startedAt),
+          ...downloads.map((item) => item.downloadedAt),
+        ]),
+      };
+    })
+    .filter((item): item is AdminReportsData["studentCourses"][number] => item !== null)
+    .sort((a, b) => new Date(b.lastActivityAt ?? b.enrollment.grantedAt).getTime() - new Date(a.lastActivityAt ?? a.enrollment.grantedAt).getTime());
+
+  const reportCourses = sortCoursesForElite(courses)
+    .filter((course) => course.status === "published")
+    .map((course) => {
+      const rows = studentCourses.filter((row) => row.course.id === course.id);
+      const courseResources = resourcesByCourseId.get(course.id) ?? [];
+      const indicatorCount = courseResources.filter((resource) => resource.kind === "indicador").length;
+      const rowsWithIndicatorDownloads = rows.filter((row) => row.downloadedIndicatorCount > 0).length;
+
+      return {
+        course,
+        studentCount: rows.filter((row) => row.enrollment.status === "active").length,
+        lessonCount: lessonIdsByCourseId.get(course.id)?.size ?? 0,
+        resourceCount: courseResources.length,
+        indicatorCount,
+        averageProgressPercent: average(rows.map((row) => row.progressPercent)),
+        indicatorDownloadPercent: percent(rowsWithIndicatorDownloads, rows.length),
+      };
+    });
+
+  const rowsWithIndicators = studentCourses.filter((row) => row.indicatorCount > 0);
+
+  return {
+    stats: {
+      activeStudents: new Set(
+        studentCourses
+          .filter((row) => row.enrollment.status === "active")
+          .map((row) => row.account.id),
+      ).size,
+      totalEnrollments: studentCourses.length,
+      averageCompletionPercent: average(studentCourses.map((row) => row.progressPercent)),
+      indicatorDownloadPercent: percent(
+        rowsWithIndicators.filter((row) => row.downloadedIndicatorCount > 0).length,
+        rowsWithIndicators.length,
+      ),
+    },
+    courses: reportCourses,
+    studentCourses,
+  };
+}
+
 function getNextModuleOrder(modules: CourseModule[], courseId: string) {
   const courseOrders = modules
     .filter((item) => item.courseId === courseId)
@@ -691,6 +859,59 @@ async function getSupabaseLessonProgressSafe(studentId: string, courseId?: strin
     return await getSupabaseLessonProgress(studentId, courseId);
   } catch {
     return null;
+  }
+}
+
+async function getSupabaseAllLessonProgressSafe(): Promise<LessonProgressRecord[]> {
+  if (!supabase) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase.from("lesson_progress").select("*");
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map(
+      (row: any) =>
+        ({
+          studentId: row.student_id,
+          courseId: row.course_id,
+          lessonId: row.lesson_id,
+          startedAt: row.started_at,
+          completedAt: row.completed_at,
+        }) satisfies LessonProgressRecord,
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function getSupabaseResourceDownloadsSafe(): Promise<ResourceDownloadRecord[]> {
+  if (!supabase) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase.from("resource_downloads").select("*");
+
+    if (error) {
+      throw error;
+    }
+
+    return (data ?? []).map(
+      (row: any) =>
+        ({
+          studentId: row.student_id,
+          courseId: row.course_id,
+          resourceId: row.resource_id,
+          downloadedAt: row.downloaded_at,
+        }) satisfies ResourceDownloadRecord,
+    );
+  } catch {
+    return [];
   }
 }
 
@@ -1500,6 +1721,39 @@ export const academyRepository = {
     );
   },
 
+  async recordResourceDownload(input: {
+    courseId: string;
+    resourceId: string;
+    accountId?: string | null;
+    email?: string | null;
+  }) {
+    return trySupabase(
+      async () => {
+        if (!supabase) {
+          throw new Error("Supabase indisponivel");
+        }
+
+        const account = await getSupabaseAccountByIdentity(input);
+
+        if (!account) {
+          return;
+        }
+
+        const { error } = await supabase.from("resource_downloads").insert({
+          student_id: account.id,
+          course_id: input.courseId,
+          resource_id: input.resourceId,
+          downloaded_at: nowIso(),
+        });
+
+        if (error) {
+          console.warn("Nao foi possivel registrar download do material.", error);
+        }
+      },
+      async () => undefined,
+    );
+  },
+
   async getAdminOverview(): Promise<AdminOverviewData> {
     return trySupabase(
       async () => {
@@ -1542,6 +1796,44 @@ export const academyRepository = {
           requests: buildRequestSummaries(state.requests, state.courses, state.links),
           students,
         };
+      },
+    );
+  },
+
+  async getAdminReports(): Promise<AdminReportsData> {
+    return trySupabase(
+      async () => {
+        const { accounts, courses, modules, lessons, resources, enrollments } =
+          await getSupabaseCollections();
+        const [lessonProgress, resourceDownloads] = await Promise.all([
+          getSupabaseAllLessonProgressSafe(),
+          getSupabaseResourceDownloadsSafe(),
+        ]);
+
+        return buildAdminReports(
+          accounts,
+          courses,
+          modules,
+          lessons,
+          resources,
+          enrollments,
+          lessonProgress,
+          resourceDownloads,
+        );
+      },
+      async () => {
+        const state = getDemoCollections();
+
+        return buildAdminReports(
+          state.accounts,
+          state.courses,
+          state.modules,
+          state.lessons,
+          state.resources,
+          state.enrollments,
+          [],
+          [],
+        );
       },
     );
   },

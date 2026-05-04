@@ -633,7 +633,19 @@ export default function CoursePlayer() {
                         variant="outline"
                         className="mt-5 border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
                       >
-                        <a href={resource.fileUrl} target="_blank" rel="noreferrer">
+                        <a
+                          href={resource.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() =>
+                            void academyRepository.recordResourceDownload({
+                              courseId,
+                              resourceId: resource.id,
+                              accountId: account?.id,
+                              email: session?.user.email,
+                            })
+                          }
+                        >
                           Abrir material
                         </a>
                       </Button>

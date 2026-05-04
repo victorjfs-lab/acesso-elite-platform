@@ -15,6 +15,8 @@ const Login = lazy(() => import("@/pages/Login"));
 const AppIndex = lazy(() => import("@/pages/AppIndex"));
 const StudentHome = lazy(() => import("@/pages/StudentHome"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const AdminLinks = lazy(() => import("@/pages/AdminLinks"));
+const AdminReports = lazy(() => import("@/pages/AdminReports"));
 const AdminProducts = lazy(() => import("@/pages/AdminProducts"));
 const AdminCourseCreate = lazy(() => import("@/pages/AdminCourseCreate"));
 const AdminCourseEditor = lazy(() => import("@/pages/AdminCourseEditor"));
@@ -60,6 +62,8 @@ const App = () => (
                 <Route path="/app" element={<AppIndex />} />
                 <Route path="/app/minha-area" element={<StudentHome />} />
                 <Route path="/app/admin" element={<AdminDashboard />} />
+                <Route path="/app/admin/links" element={<AdminLinks />} />
+                <Route path="/app/admin/relatorios" element={<AdminReports />} />
                 <Route path="/app/admin/produtos" element={<AdminProducts />} />
                 <Route path="/app/admin/produtos/novo" element={<AdminCourseCreate />} />
                 <Route path="/app/admin/produtos/:courseId" element={<AdminCourseEditor />} />

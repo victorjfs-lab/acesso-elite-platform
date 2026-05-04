@@ -31,8 +31,8 @@ const accessOptions = [
   { label: "6 meses", value: 180 },
   { label: "1 ano", value: 365 },
 ];
-const STUDENTS_PER_PAGE = 25;
-const REQUESTS_PER_PAGE = 25;
+const STUDENTS_PER_PAGE = 5;
+const REQUESTS_PER_PAGE = 10;
 
 const shortDateFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
@@ -144,8 +144,15 @@ export default function AdminDashboard() {
       return [
         student.account.fullName,
         student.account.email,
+        student.account.createdAt,
+        formatDateLabel(student.account.createdAt),
+        getInclusionDate(student),
+        formatDateLabel(getInclusionDate(student)),
+        getExpirationDate(student),
+        formatDateLabel(getExpirationDate(student)),
         student.course?.title,
         student.enrollment?.status,
+        getRemainingLabel(student),
       ]
         .filter(Boolean)
         .join(" ")
@@ -166,6 +173,10 @@ export default function AdminDashboard() {
         request.linkTitle,
         request.notes,
         request.status,
+        request.createdAt,
+        formatDateLabel(request.createdAt),
+        request.approvedAt,
+        formatDateLabel(request.approvedAt),
       ]
         .filter(Boolean)
         .join(" ")
@@ -405,7 +416,7 @@ export default function AdminDashboard() {
               setRequestPage(1);
             }}
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
-            placeholder="Buscar alunos, solicitações, cursos, e-mails..."
+            placeholder="Buscar por aluno, e-mail, WhatsApp, curso, status ou data..."
           />
         </div>
         <div className="flex flex-wrap gap-2">
@@ -584,7 +595,7 @@ export default function AdminDashboard() {
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <span className="rounded-full bg-slate-100 px-3 py-1.5">25 por página</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1.5">10 por página</span>
                 <span className="rounded-full bg-primary/10 px-3 py-1.5 text-primary">
                   {filteredRequests.length} total
                 </span>
@@ -727,7 +738,7 @@ export default function AdminDashboard() {
         </Card>
       </section>
 
-      <Card className="border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+      <Card className="hidden">
         <CardHeader>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -786,7 +797,7 @@ export default function AdminDashboard() {
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
               <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium">
-                25 por página
+                5 por página
               </span>
               <span>
                 Mostrando {visibleStudents.length} de {filteredStudents.length} aluno(s)

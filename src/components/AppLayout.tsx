@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  BarChart3,
   BookOpen,
   ChevronRight,
   FolderKanban,
   GraduationCap,
+  Link2,
   LogOut,
   Menu,
   PanelsTopLeft,
@@ -39,8 +41,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const navItems = useMemo(() => {
     if (account?.role === "admin") {
       return [
-        { to: "/app/admin/produtos", label: "Produtos", icon: FolderKanban },
         { to: "/app/admin", label: "Operação", icon: PanelsTopLeft },
+        { to: "/app/admin/produtos", label: "Produtos", icon: FolderKanban },
+        { to: "/app/admin/links", label: "Links", icon: Link2 },
+        { to: "/app/admin/relatorios", label: "Relatórios", icon: BarChart3 },
       ];
     }
 
@@ -75,6 +79,26 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         .title ?? null
     );
   }, [isStudentView, location.pathname, studentDashboard]);
+
+  const headerTitle = useMemo(() => {
+    if (account?.role !== "admin") {
+      return "Aproveite seu acesso elite";
+    }
+
+    if (location.pathname.startsWith("/app/admin/produtos")) {
+      return "Estruture seus produtos e conteúdos";
+    }
+
+    if (location.pathname.startsWith("/app/admin/links")) {
+      return "Organize seus links de cadastro";
+    }
+
+    if (location.pathname.startsWith("/app/admin/relatorios")) {
+      return "Acompanhe relatórios e progresso";
+    }
+
+    return "Gerencie matrículas e acessos";
+  }, [account?.role, location.pathname]);
 
   async function handleSignOut() {
     setIsSigningOut(true);
@@ -160,7 +184,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <nav className="relative flex-1 space-y-2 px-4 py-6">
           {navItems.map((item) => {
             const active =
-              item.to === "/"
+              item.to === "/app/admin"
                 ? location.pathname === item.to
                 : location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
 
@@ -275,11 +299,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {account?.role === "admin" ? "Operação" : "Estudos"}
             </p>
             <p className={cn("text-lg font-semibold", isStudentView ? "text-white" : "text-slate-900")}>
-              {account?.role === "admin"
-                ? location.pathname.startsWith("/app/admin/produtos")
-                  ? "Estruture seus produtos e conteúdos"
-                  : "Gerencie matrículas e acessos"
-                : "Aproveite seu acesso elite"}
+              {headerTitle}
             </p>
             {currentStudentCourseTitle ? (
               <p className="mt-1 text-xs uppercase tracking-[0.22em] text-white/42">
