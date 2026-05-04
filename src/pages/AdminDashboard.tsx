@@ -28,6 +28,7 @@ const accessOptions = [
   { label: "1 ano", value: 365 },
 ];
 const STUDENTS_PER_PAGE = 25;
+const REQUESTS_PER_PAGE = 25;
 
 const shortDateFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
@@ -108,6 +109,7 @@ export default function AdminDashboard() {
   const [requestDurations, setRequestDurations] = useState<Record<string, number>>({});
   const [renewDurations, setRenewDurations] = useState<Record<string, number>>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [requestPage, setRequestPage] = useState(1);
   const [manualForm, setManualForm] = useState({
     fullName: "",
     email: "",
@@ -128,6 +130,10 @@ export default function AdminDashboard() {
       .filter((course) => course.status === "published") ?? [];
   const defaultManualCourseId = publishedCourses[0]?.id ?? "";
   const totalPages = Math.max(1, Math.ceil((data?.students.length ?? 0) / STUDENTS_PER_PAGE));
+  const requestTotalPages = Math.max(
+    1,
+    Math.ceil((data?.requests.length ?? 0) / REQUESTS_PER_PAGE),
+  );
 
   const approveMutation = useMutation({
     mutationFn: ({ requestId, durationDays }: { requestId: string; durationDays: number }) =>
@@ -216,6 +222,12 @@ export default function AdminDashboard() {
     }
   }, [currentPage, totalPages]);
 
+  useEffect(() => {
+    if (requestPage > requestTotalPages) {
+      setRequestPage(requestTotalPages);
+    }
+  }, [requestPage, requestTotalPages]);
+
   if (account?.role !== "admin") {
     return <Navigate to="/app/minha-area" replace />;
   }
@@ -230,6 +242,21 @@ export default function AdminDashboard() {
 
   const startIndex = (currentPage - 1) * STUDENTS_PER_PAGE;
   const visibleStudents = data.students.slice(startIndex, startIndex + STUDENTS_PER_PAGE);
+  const sortedRequests = [...data.requests].sort((a, b) => {
+    const statusPriority = (status: string) => (status === "pending" ? 0 : 1);
+    const statusDifference = statusPriority(a.status) - statusPriority(b.status);
+
+    if (statusDifference !== 0) {
+      return statusDifference;
+    }
+
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+  const requestStartIndex = (requestPage - 1) * REQUESTS_PER_PAGE;
+  const visibleRequests = sortedRequests.slice(
+    requestStartIndex,
+    requestStartIndex + REQUESTS_PER_PAGE,
+  );
   const stats = [
     { label: "Alunos ativos", value: data.stats.activeStudents },
     { label: "Pedidos pendentes", value: data.stats.pendingRequests },
@@ -436,52 +463,90 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
-          <CardHeader>
-            <CardTitle>Solicitações de matrícula</CardTitle>
-            <CardDescription>
-              Aprove aqui e escolha se o acesso será por 1 mês, 3 meses, 6 meses ou 1 ano.
-            </CardDescription>
+        <Card className="overflow-hidden border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+          <CardHeader className="border-b border-slate-100 pb-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <CardTitle>Solicitações de matrícula</CardTitle>
+                <CardDescription>
+                  Lista compacta para aprovar, revisar contato e acompanhar o histórico.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <span className="rounded-full bg-slate-100 px-3 py-1.5">25 por página</span>
+                <span className="rounded-full bg-primary/10 px-3 py-1.5 text-primary">
+                  {data.requests.length} total
+                </span>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {data.requests.length === 0 ? (
-              <div className="rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50/70 px-4 py-5 text-sm text-slate-500">
+          <CardContent className="p-0">
+            {visibleRequests.length === 0 ? (
+              <div className="m-5 rounded-[1.35rem] border border-dashed border-slate-200 bg-slate-50/70 px-4 py-5 text-sm text-slate-500">
                 Nenhuma solicitação no momento.
               </div>
             ) : (
-              data.requests.map((request) => (
-                <div
-                  key={request.id}
-                  className="rounded-[1.55rem] border border-slate-200 bg-slate-50/65 p-4"
-                >
-                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                    <div className="space-y-1.5">
-                      <p className="font-semibold text-slate-900">{request.fullName}</p>
-                      <p className="text-sm text-slate-500">{request.email}</p>
-                      <p className="text-sm text-slate-500">{request.whatsapp}</p>
-                      <p className="text-sm font-medium text-primary">
-                        {request.courseTitle} · {request.linkTitle}
+              <div className="divide-y divide-slate-100">
+                {visibleRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="grid gap-4 px-5 py-4 transition hover:bg-slate-50/75 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)_190px_260px] xl:items-center"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-xs font-semibold text-white">
+                        {getInitials(request.fullName)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-950">
+                          {request.fullName}
+                        </p>
+                        <p className="truncate text-sm text-slate-500">{request.email}</p>
+                        <p className="text-xs text-slate-400">
+                          {request.whatsapp || "Sem WhatsApp"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 space-y-1">
+                      <p className="truncate text-sm font-semibold text-primary">
+                        {request.courseTitle}
                       </p>
+                      <p className="truncate text-xs text-slate-500">{request.linkTitle}</p>
                       {request.notes ? (
-                        <p className="pt-1 text-sm leading-6 text-slate-500">{request.notes}</p>
+                        <p className="line-clamp-1 text-xs text-slate-400">{request.notes}</p>
                       ) : null}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div
-                        className={`rounded-full px-4 py-2 text-sm font-medium ${
+                    <div className="grid grid-cols-2 gap-2 text-xs xl:grid-cols-1">
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <p className="uppercase tracking-[0.18em] text-slate-400">Cadastro</p>
+                        <p className="mt-1 font-semibold text-slate-700">
+                          {formatDateLabel(request.createdAt)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <p className="uppercase tracking-[0.18em] text-slate-400">Aprovação</p>
+                        <p className="mt-1 font-semibold text-slate-700">
+                          {formatDateLabel(request.approvedAt)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                      <span
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
                           request.status === "approved"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-amber-100 text-amber-800"
                         }`}
                       >
                         {request.status === "approved" ? "Aprovado" : "Pendente"}
-                      </div>
+                      </span>
 
                       {request.status === "pending" ? (
                         <>
                           <select
-                            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-primary"
+                            className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none transition focus:border-primary"
                             value={requestDurations[request.id] ?? 365}
                             onChange={(event) =>
                               setRequestDurations((current) => ({
@@ -504,17 +569,49 @@ export default function AdminDashboard() {
                               })
                             }
                             disabled={approveMutation.isPending}
-                            className="rounded-xl"
+                            size="sm"
+                            className="h-9 rounded-xl"
                           >
-                            Liberar acesso
+                            Liberar
                           </Button>
                         </>
                       ) : null}
                     </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
+
+            {requestTotalPages > 1 ? (
+              <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-slate-500">
+                  Mostrando {visibleRequests.length} de {data.requests.length} solicitação(ões) -
+                  página {requestPage} de {requestTotalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    disabled={requestPage === 1}
+                    onClick={() => setRequestPage((page) => Math.max(1, page - 1))}
+                  >
+                    <ChevronLeft className="mr-1 h-4 w-4" />
+                    Anterior
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    disabled={requestPage === requestTotalPages}
+                    onClick={() => setRequestPage((page) => Math.min(requestTotalPages, page + 1))}
+                  >
+                    Próxima
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </section>
@@ -660,7 +757,6 @@ export default function AdminDashboard() {
                               [student.enrollment!.id]: Number(event.target.value),
                             }))
                           }
-                        }
                         >
                           {accessOptions.map((option) => (
                             <option key={option.value} value={option.value}>
