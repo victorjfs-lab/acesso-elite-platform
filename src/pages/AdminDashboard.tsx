@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  CalendarClock,
+  Activity,
+  Bell,
   ChevronLeft,
   ChevronRight,
   Copy,
-  GraduationCap,
+  FolderKanban,
+  Link2,
+  Search,
   ShieldCheck,
+  Sparkles,
   TimerReset,
   Trash2,
+  TrendingUp,
   UserPlus2,
   Users,
 } from "lucide-react";
@@ -20,7 +25,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import type { AdminStudentAccess } from "@/types/academy";
 
-const statIcons = [Users, CalendarClock, TimerReset, GraduationCap];
 const accessOptions = [
   { label: "1 mês", value: 30 },
   { label: "3 meses", value: 90 },
@@ -103,13 +107,14 @@ function getRemainingTone(student: AdminStudentAccess) {
 }
 
 export default function AdminDashboard() {
-  const { account, isDemoMode } = useAuth();
+  const { account } = useAuth();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [requestDurations, setRequestDurations] = useState<Record<string, number>>({});
   const [renewDurations, setRenewDurations] = useState<Record<string, number>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [requestPage, setRequestPage] = useState(1);
+  const [adminSearch, setAdminSearch] = useState("");
   const [manualForm, setManualForm] = useState({
     fullName: "",
     email: "",
@@ -129,10 +134,48 @@ export default function AdminDashboard() {
       .map((item) => item.course)
       .filter((course) => course.status === "published") ?? [];
   const defaultManualCourseId = publishedCourses[0]?.id ?? "";
-  const totalPages = Math.max(1, Math.ceil((data?.students.length ?? 0) / STUDENTS_PER_PAGE));
+  const normalizedAdminSearch = adminSearch.trim().toLowerCase();
+  const filteredStudents =
+    data?.students.filter((student) => {
+      if (!normalizedAdminSearch) {
+        return true;
+      }
+
+      return [
+        student.account.fullName,
+        student.account.email,
+        student.course?.title,
+        student.enrollment?.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedAdminSearch);
+    }) ?? [];
+  const filteredRequests =
+    data?.requests.filter((request) => {
+      if (!normalizedAdminSearch) {
+        return true;
+      }
+
+      return [
+        request.fullName,
+        request.email,
+        request.whatsapp,
+        request.courseTitle,
+        request.linkTitle,
+        request.notes,
+        request.status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedAdminSearch);
+    }) ?? [];
+  const totalPages = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE));
   const requestTotalPages = Math.max(
     1,
-    Math.ceil((data?.requests.length ?? 0) / REQUESTS_PER_PAGE),
+    Math.ceil(filteredRequests.length / REQUESTS_PER_PAGE),
   );
 
   const approveMutation = useMutation({
@@ -241,8 +284,8 @@ export default function AdminDashboard() {
   }
 
   const startIndex = (currentPage - 1) * STUDENTS_PER_PAGE;
-  const visibleStudents = data.students.slice(startIndex, startIndex + STUDENTS_PER_PAGE);
-  const sortedRequests = [...data.requests].sort((a, b) => {
+  const visibleStudents = filteredStudents.slice(startIndex, startIndex + STUDENTS_PER_PAGE);
+  const sortedRequests = [...filteredRequests].sort((a, b) => {
     const statusPriority = (status: string) => (status === "pending" ? 0 : 1);
     const statusDifference = statusPriority(a.status) - statusPriority(b.status);
 
@@ -257,11 +300,43 @@ export default function AdminDashboard() {
     requestStartIndex,
     requestStartIndex + REQUESTS_PER_PAGE,
   );
+  const adminFirstName = account?.fullName?.split(" ")[0] ?? "Victor";
+  const currentHour = new Date().getHours();
+  const greeting =
+    currentHour < 12 ? "Bom dia" : currentHour < 18 ? "Boa tarde" : "Boa noite";
   const stats = [
-    { label: "Alunos ativos", value: data.stats.activeStudents },
-    { label: "Pedidos pendentes", value: data.stats.pendingRequests },
-    { label: "Vencendo em 30 dias", value: data.stats.expiringSoon },
-    { label: "Cursos publicados", value: data.stats.publishedCourses },
+    {
+      label: "Alunos ativos",
+      value: data.stats.activeStudents,
+      helper: "com acesso liberado",
+      Icon: Users,
+      tone: "from-blue-500 to-blue-700",
+      trend: "+ controle",
+    },
+    {
+      label: "Pedidos pendentes",
+      value: data.stats.pendingRequests,
+      helper: "aguardando aprovação",
+      Icon: Bell,
+      tone: "from-amber-400 to-orange-500",
+      trend: "atenção",
+    },
+    {
+      label: "Vencendo em 30 dias",
+      value: data.stats.expiringSoon,
+      helper: "renovar em breve",
+      Icon: TimerReset,
+      tone: "from-violet-500 to-slate-700",
+      trend: "prazo",
+    },
+    {
+      label: "Cursos publicados",
+      value: data.stats.publishedCourses,
+      helper: "disponíveis no portal",
+      Icon: FolderKanban,
+      tone: "from-emerald-400 to-teal-600",
+      trend: "catálogo",
+    },
   ];
 
   async function copyLink(slug: string) {
@@ -278,62 +353,98 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-7">
-      <section className="overflow-hidden rounded-[2rem] border border-slate-800 bg-[radial-gradient(circle_at_top_left,rgba(241,180,49,0.12),transparent_20%),linear-gradient(135deg,#0f2230_0%,#0a141b_54%,#111111_100%)] p-8 text-white shadow-[0_40px_120px_rgba(3,9,13,0.28)]">
-        <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+    <div className="space-y-6 rounded-[2rem] bg-[#f5f8fc] p-1">
+      <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_32%),linear-gradient(135deg,#ffffff_0%,#eef6ff_54%,#e9eef6_100%)] p-7 shadow-[0_24px_70px_rgba(30,64,175,0.12)]">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.34em] text-emerald-300">Operação</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em]">
-              Gestão de matrículas com leitura rápida e controle fino.
-            </h1>
-            <p className="mt-4 max-w-3xl text-base leading-8 text-white/72">
-              Agora a parte operacional fica mais objetiva: aprovar, cadastrar manualmente,
-              acompanhar inclusão, validade e renovar sem poluição visual.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Button asChild className="bg-white text-slate-950 hover:bg-white/90">
-                <Link to="/app/admin/produtos">Ir para Produtos</Link>
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="border-white/15 bg-white/5 text-white hover:bg-white/10 hover:text-white"
-              >
-                <Link to="/app/admin/produtos/novo">Criar novo curso</Link>
-              </Button>
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/75 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.22em] text-blue-700 shadow-sm">
+              <Sparkles className="h-3.5 w-3.5" />
+              Control Center
             </div>
+            <h1 className="mt-5 text-4xl font-black tracking-[-0.06em] text-slate-950 sm:text-5xl">
+              {greeting}, {adminFirstName}
+            </h1>
+            <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
+              Sua operação está organizada: matrículas, alunos, links e renovações em um painel
+              mais limpo, rápido e fácil de bater o olho.
+            </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-[1.45rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
-              <p className="text-sm text-white/58">Pendências imediatas</p>
-              <p className="mt-2 text-3xl font-semibold">{data.stats.pendingRequests}</p>
-            </div>
-            <div className="rounded-[1.45rem] border border-white/10 bg-white/[0.06] p-5 backdrop-blur">
-              <p className="text-sm text-white/58">Renovar em breve</p>
-              <p className="mt-2 text-3xl font-semibold">{data.stats.expiringSoon}</p>
-            </div>
-            <div className="rounded-[1.45rem] border border-white/10 bg-white/[0.06] p-5 text-sm leading-7 text-white/72 sm:col-span-2">
-              {isDemoMode
-                ? "Modo demonstração ativo: novos alunos manuais usam a senha informada e funcionam sem depender do Auth real."
-                : "Modo produção ativo: os cadastros manuais já criam o login do aluno e liberam o acesso imediatamente."}
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              asChild
+              variant="outline"
+              className="h-12 rounded-2xl border-white bg-white/80 px-5 shadow-sm hover:bg-white"
+            >
+              <Link to="/app/admin/produtos">
+                <FolderKanban className="mr-2 h-4 w-4" />
+                Produtos
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="h-12 rounded-2xl bg-blue-700 px-5 text-white shadow-[0_18px_45px_rgba(37,99,235,0.25)] hover:bg-blue-800"
+            >
+              <Link to="/app/admin/produtos/novo">
+                <UserPlus2 className="mr-2 h-4 w-4" />
+                Novo curso
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
 
+      <section className="flex flex-col gap-3 rounded-[1.4rem] border border-slate-200 bg-white/95 p-3 shadow-[0_18px_55px_rgba(15,23,42,0.06)] lg:flex-row lg:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={adminSearch}
+            onChange={(event) => {
+              setAdminSearch(event.target.value);
+              setCurrentPage(1);
+              setRequestPage(1);
+            }}
+            className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:bg-white focus:ring-4 focus:ring-blue-100"
+            placeholder="Buscar alunos, solicitações, cursos, e-mails..."
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="inline-flex h-12 items-center gap-2 rounded-2xl bg-slate-100 px-4 text-sm font-semibold text-slate-600">
+            <Activity className="h-4 w-4 text-blue-700" />
+            {filteredStudents.length} alunos
+          </span>
+          <span className="inline-flex h-12 items-center gap-2 rounded-2xl bg-amber-50 px-4 text-sm font-semibold text-amber-700">
+            <Bell className="h-4 w-4" />
+            {filteredRequests.length} solicitações
+          </span>
+        </div>
+      </section>
+
       <section className="grid gap-4 lg:grid-cols-4">
-        {stats.map((item, index) => {
-          const Icon = statIcons[index];
+        {stats.map((item) => {
+          const Icon = item.Icon;
           return (
             <Card
               key={item.label}
-              className="border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]"
+              className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]"
             >
-              <CardContent className="p-5">
-                <Icon className="mb-4 h-5 w-5 text-primary" />
-                <p className="text-sm text-muted-foreground">{item.label}</p>
-                <p className="mt-2 text-3xl font-semibold tracking-[-0.04em]">{item.value}</p>
+              <CardContent className="relative p-6">
+                <div
+                  className={`mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-white shadow-lg`}
+                >
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="absolute right-5 top-6 inline-flex items-center gap-1 text-xs font-bold text-emerald-600">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  {item.trend}
+                </div>
+                <p className="text-3xl font-black tracking-[-0.06em] text-slate-950">
+                  {item.value}
+                </p>
+                <p className="mt-1 text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
+                  {item.label}
+                </p>
+                <p className="mt-2 text-sm text-slate-500">{item.helper}</p>
               </CardContent>
             </Card>
           );
@@ -341,7 +452,7 @@ export default function AdminDashboard() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[0.88fr_1.12fr]">
-        <Card className="border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+        <Card className="border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
           <CardHeader className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl bg-primary/10 p-3 text-primary">
@@ -463,7 +574,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+        <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
           <CardHeader className="border-b border-slate-100 pb-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
@@ -475,7 +586,7 @@ export default function AdminDashboard() {
               <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                 <span className="rounded-full bg-slate-100 px-3 py-1.5">25 por página</span>
                 <span className="rounded-full bg-primary/10 px-3 py-1.5 text-primary">
-                  {data.requests.length} total
+                  {filteredRequests.length} total
                 </span>
               </div>
             </div>
@@ -585,7 +696,7 @@ export default function AdminDashboard() {
             {requestTotalPages > 1 ? (
               <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-slate-500">
-                  Mostrando {visibleRequests.length} de {data.requests.length} solicitação(ões) -
+                  Mostrando {visibleRequests.length} de {filteredRequests.length} solicitação(ões) -
                   página {requestPage} de {requestTotalPages}
                 </p>
                 <div className="flex items-center gap-2">
@@ -616,11 +727,14 @@ export default function AdminDashboard() {
         </Card>
       </section>
 
-      <Card className="border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+      <Card className="border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
         <CardHeader>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <CardTitle>Links de cadastro</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Link2 className="h-5 w-5 text-blue-700" />
+                Links de cadastro
+              </CardTitle>
               <CardDescription>
                 Cada link pode ser enviado para uma turma, campanha ou lista específica.
               </CardDescription>
@@ -661,7 +775,7 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      <Card className="border-slate-200/80 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+      <Card className="border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
         <CardHeader>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -675,7 +789,7 @@ export default function AdminDashboard() {
                 25 por página
               </span>
               <span>
-                Mostrando {visibleStudents.length} de {data.students.length} aluno(s)
+                Mostrando {visibleStudents.length} de {filteredStudents.length} aluno(s)
               </span>
             </div>
           </div>
@@ -689,15 +803,15 @@ export default function AdminDashboard() {
             visibleStudents.map((student) => (
               <div
                 key={student.account.id}
-                className="rounded-[1.7rem] border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfcfd_100%)] p-4 shadow-[0_12px_30px_rgba(15,23,42,0.035)]"
+                className="rounded-2xl border border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#fbfcfd_100%)] px-4 py-3 shadow-[0_10px_24px_rgba(15,23,42,0.035)] transition hover:border-blue-200 hover:bg-blue-50/20"
               >
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.92fr)_auto]">
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white">
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.92fr)_auto]">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-xs font-semibold text-white">
                       {getInitials(student.account.fullName)}
                     </div>
-                    <div className="min-w-0 space-y-1.5">
-                      <p className="text-base font-semibold text-slate-900">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-sm font-semibold text-slate-900">
                         {student.account.fullName}
                       </p>
                       <p className="truncate text-sm text-slate-500">{student.account.email}</p>
@@ -714,8 +828,8 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-2">
-                    <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/85 px-4 py-3">
+                  <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/85 px-3 py-2">
                       <p className="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">
                         Incluído em
                       </p>
@@ -723,7 +837,7 @@ export default function AdminDashboard() {
                         {formatDateLabel(getInclusionDate(student))}
                       </p>
                     </div>
-                    <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/85 px-4 py-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/85 px-3 py-2">
                       <p className="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">
                         Expira em
                       </p>
@@ -731,7 +845,7 @@ export default function AdminDashboard() {
                         {formatDateLabel(getExpirationDate(student))}
                       </p>
                     </div>
-                    <div className="rounded-[1.2rem] border border-slate-200 bg-slate-50/85 px-4 py-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/85 px-3 py-2">
                       <p className="text-[0.68rem] uppercase tracking-[0.24em] text-slate-400">
                         Status
                       </p>
