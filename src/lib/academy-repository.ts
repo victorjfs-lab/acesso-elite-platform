@@ -120,11 +120,108 @@ function sortCoursesForElite(courses: Course[]) {
 }
 
 function isEliteEnrollment(enrollment: Enrollment) {
-  return enrollment.sourceSlug === ELITE_LINK_SLUG;
+  return enrollment.sourceSlug === ELITE_LINK_SLUG || enrollment.sourceSlug === ELITE_COURSE_SLUG;
+}
+
+function isActiveEnrollment(enrollment: Enrollment) {
+  return normalizeEnrollment(enrollment).status === "active";
+}
+
+function isEliteTargetCourse(course: Course) {
+  return course.status === "published" && course.slug !== ELITE_COURSE_SLUG;
 }
 
 function isMasterEliteCourse(course: Course) {
   return course.slug === MASTER_ELITE_COURSE_SLUG;
+}
+
+function pickBestEnrollment(current: Enrollment | undefined, candidate: Enrollment) {
+  if (!current) {
+    return candidate;
+  }
+
+  const currentNormalized = normalizeEnrollment(current);
+  const candidateNormalized = normalizeEnrollment(candidate);
+  const currentActive = currentNormalized.status === "active";
+  const candidateActive = candidateNormalized.status === "active";
+
+  if (currentActive !== candidateActive) {
+    return candidateActive ? candidate : current;
+  }
+
+  const currentElite = isEliteEnrollment(currentNormalized);
+  const candidateElite = isEliteEnrollment(candidateNormalized);
+
+  if (currentElite !== candidateElite) {
+    return candidateElite ? candidate : current;
+  }
+
+  return new Date(candidateNormalized.expiresAt).getTime() >
+    new Date(currentNormalized.expiresAt).getTime()
+    ? candidate
+    : current;
+}
+
+function uniqueEnrollmentsByStudentCourse(enrollments: Enrollment[]) {
+  const byStudentCourse = new Map<string, Enrollment>();
+
+  for (const enrollment of enrollments.map(normalizeEnrollment)) {
+    const key = `${enrollment.studentId}:${enrollment.courseId}`;
+    byStudentCourse.set(key, pickBestEnrollment(byStudentCourse.get(key), enrollment));
+  }
+
+  return [...byStudentCourse.values()];
+}
+
+function expandEnrollmentsWithEliteAccess(
+  courses: Course[],
+  enrollments: Enrollment[],
+  studentId?: string | null,
+) {
+  const normalizedEnrollments = enrollments.map(normalizeEnrollment);
+  const eliteAnchors = new Map<string, Enrollment>();
+
+  for (const enrollment of normalizedEnrollments) {
+    if (
+      !isEliteEnrollment(enrollment) ||
+      !isActiveEnrollment(enrollment) ||
+      (studentId && enrollment.studentId !== studentId)
+    ) {
+      continue;
+    }
+
+    const current = eliteAnchors.get(enrollment.studentId);
+    eliteAnchors.set(enrollment.studentId, pickBestEnrollment(current, enrollment));
+  }
+
+  const expandedEnrollments = [...normalizedEnrollments];
+  const eliteCourses = courses.filter(isEliteTargetCourse);
+
+  for (const anchor of eliteAnchors.values()) {
+    for (const course of eliteCourses) {
+      const hasActiveEliteEnrollment = normalizedEnrollments.some(
+        (enrollment) =>
+          enrollment.studentId === anchor.studentId &&
+          enrollment.courseId === course.id &&
+          isEliteEnrollment(enrollment) &&
+          isActiveEnrollment(enrollment),
+      );
+
+      if (hasActiveEliteEnrollment) {
+        continue;
+      }
+
+      expandedEnrollments.push({
+        ...anchor,
+        id: `elite-virtual-${anchor.studentId}-${course.id}`,
+        courseId: course.id,
+        sourceSlug: ELITE_LINK_SLUG,
+        status: "active",
+      });
+    }
+  }
+
+  return uniqueEnrollmentsByStudentCourse(expandedEnrollments);
 }
 
 function getEliteCourseReleaseOffsetDays(course: Course) {
@@ -187,7 +284,7 @@ async function syncPublishedCourseToEliteSupabase(course: Course) {
     throw new Error("Supabase indisponivel");
   }
 
-  if (course.status !== "published" || course.slug === ELITE_COURSE_SLUG) {
+  if (!isEliteTargetCourse(course)) {
     return;
   }
 
@@ -195,7 +292,7 @@ async function syncPublishedCourseToEliteSupabase(course: Course) {
   const eliteAnchors = new Map<string, Enrollment>();
 
   for (const enrollment of collections.enrollments) {
-    if (enrollment.status !== "active" || enrollment.sourceSlug !== ELITE_LINK_SLUG) {
+    if (!isActiveEnrollment(enrollment) || !isEliteEnrollment(enrollment)) {
       continue;
     }
 
@@ -230,7 +327,7 @@ async function syncPublishedCourseToEliteSupabase(course: Course) {
 }
 
 function syncPublishedCourseToEliteDemo(course: Course) {
-  if (course.status !== "published" || course.slug === ELITE_COURSE_SLUG) {
+  if (!isEliteTargetCourse(course)) {
     return;
   }
 
@@ -238,7 +335,7 @@ function syncPublishedCourseToEliteDemo(course: Course) {
     const eliteAnchors = new Map<string, Enrollment>();
 
     for (const enrollment of state.enrollments) {
-      if (enrollment.status !== "active" || enrollment.sourceSlug !== ELITE_LINK_SLUG) {
+      if (!isActiveEnrollment(enrollment) || !isEliteEnrollment(enrollment)) {
         continue;
       }
 
@@ -1364,7 +1461,10 @@ export const academyRepository = {
         const lessonProgress = account
           ? await getSupabaseLessonProgressSafe(account.id)
           : null;
-        const accessList = enrollments
+        const expandedEnrollments = account
+          ? expandEnrollmentsWithEliteAccess(courses, enrollments, account.id)
+          : enrollments.map(normalizeEnrollment);
+        const accessList = expandedEnrollments
           .filter((item) => item.studentId === account?.id)
           .map((item) =>
             buildStudentCourseAccess(
@@ -1409,7 +1509,10 @@ export const academyRepository = {
           state.accounts.find((item) => item.id === identity.accountId) ??
           state.accounts.find((item) => item.email.toLowerCase() === normalizedEmail) ??
           null;
-        const accessList = state.enrollments
+        const expandedEnrollments = account
+          ? expandEnrollmentsWithEliteAccess(state.courses, state.enrollments, account.id)
+          : state.enrollments.map(normalizeEnrollment);
+        const accessList = expandedEnrollments
           .filter((item) => item.studentId === account?.id)
           .map((item) =>
             buildStudentCourseAccess(
@@ -1474,10 +1577,13 @@ export const academyRepository = {
           ? await getSupabaseLessonProgressSafe(account.id)
           : null;
 
+        const expandedEnrollments = account
+          ? expandEnrollmentsWithEliteAccess(courses, enrollments, account.id)
+          : enrollments.map(normalizeEnrollment);
         const enrollment =
-          enrollments.find((item) => item.courseId === courseId && item.studentId === account?.id) ??
+          expandedEnrollments.find((item) => item.courseId === courseId && item.studentId === account?.id) ??
           null;
-        const accessList = enrollments
+        const accessList = expandedEnrollments
           .filter((item) => item.studentId === account?.id)
           .map((item) =>
             buildStudentCourseAccess(
@@ -1548,10 +1654,13 @@ export const academyRepository = {
           state.accounts.find((item) => item.email.toLowerCase() === normalizedEmail) ??
           null;
 
+        const expandedEnrollments = account
+          ? expandEnrollmentsWithEliteAccess(state.courses, state.enrollments, account.id)
+          : state.enrollments.map(normalizeEnrollment);
         const enrollment =
-          state.enrollments.find((item) => item.courseId === courseId && item.studentId === account?.id) ??
+          expandedEnrollments.find((item) => item.courseId === courseId && item.studentId === account?.id) ??
           null;
-        const accessList = state.enrollments
+        const accessList = expandedEnrollments
           .filter((item) => item.studentId === account?.id)
           .map((item) =>
             buildStudentCourseAccess(
@@ -1759,7 +1868,8 @@ export const academyRepository = {
       async () => {
         const { accounts, courses, modules, links, requests, enrollments } =
           await getSupabaseCollections();
-        const students = buildAdminStudentRows(accounts, courses, enrollments);
+        const expandedEnrollments = expandEnrollmentsWithEliteAccess(courses, enrollments);
+        const students = buildAdminStudentRows(accounts, courses, expandedEnrollments);
 
         return {
           stats: {
@@ -1779,7 +1889,11 @@ export const academyRepository = {
       },
       async () => {
         const state = getDemoCollections();
-        const students = buildAdminStudentRows(state.accounts, state.courses, state.enrollments);
+        const expandedEnrollments = expandEnrollmentsWithEliteAccess(
+          state.courses,
+          state.enrollments,
+        );
+        const students = buildAdminStudentRows(state.accounts, state.courses, expandedEnrollments);
 
         return {
           stats: {
@@ -1816,7 +1930,7 @@ export const academyRepository = {
           modules,
           lessons,
           resources,
-          enrollments,
+          expandEnrollmentsWithEliteAccess(courses, enrollments),
           lessonProgress,
           resourceDownloads,
         );
@@ -1830,7 +1944,7 @@ export const academyRepository = {
           state.modules,
           state.lessons,
           state.resources,
-          state.enrollments,
+          expandEnrollmentsWithEliteAccess(state.courses, state.enrollments),
           [],
           [],
         );
@@ -1893,9 +2007,7 @@ export const academyRepository = {
           requestCourse?.slug === ELITE_COURSE_SLUG || requestLink?.slug === ELITE_LINK_SLUG;
 
         const targetCourses = isEliteRequest
-          ? allCollections.courses.filter(
-              (course) => course.status === "published" && course.slug !== ELITE_COURSE_SLUG,
-            )
+          ? allCollections.courses.filter(isEliteTargetCourse)
           : requestCourse
             ? [requestCourse]
             : [];
@@ -1983,9 +2095,7 @@ export const academyRepository = {
           const isEliteRequest =
             requestCourse?.slug === ELITE_COURSE_SLUG || requestLink?.slug === ELITE_LINK_SLUG;
           const targetCourseIds = isEliteRequest
-            ? state.courses
-                .filter((course) => course.status === "published" && course.slug !== ELITE_COURSE_SLUG)
-                .map((course) => course.id)
+            ? state.courses.filter(isEliteTargetCourse).map((course) => course.id)
             : [request.courseId];
 
           const grantedAt = nowIso();
