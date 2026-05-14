@@ -2266,6 +2266,31 @@ export const academyRepository = {
     );
   },
 
+  async deleteEnrollmentRequest(requestId: string) {
+    return trySupabase(
+      async () => {
+        if (!supabase) {
+          throw new Error("Supabase indisponivel");
+        }
+
+        const { error } = await supabase
+          .from("enrollment_requests")
+          .delete()
+          .eq("id", requestId);
+
+        if (error) {
+          throw error;
+        }
+      },
+      async () => {
+        updateDemoState((state) => ({
+          ...state,
+          requests: state.requests.filter((item) => item.id !== requestId),
+        }));
+      },
+    );
+  },
+
   async createManualStudent(input: CreateManualStudentInput) {
     return trySupabase(
       async () => {
