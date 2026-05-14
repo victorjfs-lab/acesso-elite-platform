@@ -23,7 +23,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminStudentAccess } from "@/types/academy";
+import type { AdminStudentAccess, AdminStudentCourseControl } from "@/types/academy";
 
 const accessOptions = [
   { label: "1 mês", value: 30 },
@@ -106,6 +106,18 @@ function getRemainingTone(student: AdminStudentAccess) {
   return "border-emerald-400/20 bg-emerald-400/10 text-emerald-800";
 }
 
+function getCourseControlTone(control: AdminStudentCourseControl) {
+  if (control.isManuallyBlocked) {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  if (control.hasAccess) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-500";
+}
+
 export default function AdminDashboard() {
   const { account } = useAuth();
   const queryClient = useQueryClient();
@@ -115,6 +127,8 @@ export default function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [requestPage, setRequestPage] = useState(1);
   const [adminSearch, setAdminSearch] = useState("");
+  const [courseAccessSearch, setCourseAccessSearch] = useState("");
+  const [selectedAccessStudentId, setSelectedAccessStudentId] = useState<string | null>(null);
   const [manualForm, setManualForm] = useState({
     fullName: "",
     email: "",
@@ -183,6 +197,38 @@ export default function AdminDashboard() {
         .toLowerCase()
         .includes(normalizedAdminSearch);
     }) ?? [];
+  const normalizedCourseAccessSearch = courseAccessSearch.trim().toLowerCase();
+  const courseAccessStudents = Array.from(
+    new Map(
+      (data?.studentCourseAccess ?? []).map((item) => [item.account.id, item.account]),
+    ).values(),
+  )
+    .filter((student) => {
+      if (!normalizedCourseAccessSearch) {
+        return true;
+      }
+
+      return [student.fullName, student.email, formatDateLabel(student.createdAt)]
+        .join(" ")
+        .toLowerCase()
+        .includes(normalizedCourseAccessSearch);
+    })
+    .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  const selectedAccessStudent =
+    courseAccessStudents.find((student) => student.id === selectedAccessStudentId) ??
+    courseAccessStudents[0] ??
+    null;
+  const selectedStudentControls =
+    selectedAccessStudent === null
+      ? []
+      : (data?.studentCourseAccess ?? []).filter(
+          (item) => item.account.id === selectedAccessStudent.id,
+        );
+  const selectedAccessSummary = {
+    allowed: selectedStudentControls.filter((item) => item.hasAccess).length,
+    blocked: selectedStudentControls.filter((item) => item.isManuallyBlocked).length,
+    total: selectedStudentControls.length,
+  };
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE));
   const requestTotalPages = Math.max(
     1,
@@ -258,6 +304,27 @@ export default function AdminDashboard() {
     onError: (error) => {
       toast({
         title: "Não foi possível excluir o usuário",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const courseAccessMutation = useMutation({
+    mutationFn: (input: { studentId: string; courseId: string; allow: boolean }) =>
+      academyRepository.setStudentCourseAccess(input),
+    onSuccess: async (_result, input) => {
+      await queryClient.invalidateQueries({ queryKey: ["admin-overview"] });
+      toast({
+        title: input.allow ? "Curso liberado" : "Curso retirado",
+        description: input.allow
+          ? "O aluno voltou a ter acesso a este curso."
+          : "Este curso foi bloqueado para este aluno.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Nao foi possivel alterar o acesso",
         description: error instanceof Error ? error.message : "Tente novamente.",
         variant: "destructive",
       });
@@ -462,6 +529,165 @@ export default function AdminDashboard() {
         })}
       </section>
 
+      <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
+        <CardHeader className="border-b border-slate-100 px-5 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <CardTitle className="text-xl font-semibold tracking-[-0.03em]">
+                Acesso individual por aluno
+              </CardTitle>
+              <CardDescription className="mt-1 text-sm">
+                Busque um aluno, veja todos os cursos e libere ou bloqueie exceções do Acesso Elite.
+              </CardDescription>
+            </div>
+            {selectedAccessStudent ? (
+              <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.16em]">
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+                  {selectedAccessSummary.allowed} liberado(s)
+                </span>
+                <span className="rounded-full bg-red-50 px-3 py-1 text-red-700">
+                  {selectedAccessSummary.blocked} bloqueado(s)
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">
+                  {selectedAccessSummary.total} curso(s)
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 p-4 xl:grid-cols-[340px_1fr]">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={courseAccessSearch}
+                onChange={(event) => setCourseAccessSearch(event.target.value)}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                placeholder="Buscar aluno ou e-mail..."
+              />
+            </div>
+
+            <div className="mt-3 max-h-[420px] space-y-2 overflow-auto pr-1">
+              {courseAccessStudents.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-500">
+                  Nenhum aluno encontrado.
+                </div>
+              ) : (
+                courseAccessStudents.slice(0, 12).map((student) => {
+                  const isSelected = student.id === selectedAccessStudent?.id;
+
+                  return (
+                    <button
+                      key={student.id}
+                      type="button"
+                      onClick={() => setSelectedAccessStudentId(student.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                        isSelected
+                          ? "border-blue-200 bg-white shadow-sm ring-2 ring-blue-100"
+                          : "border-transparent bg-transparent hover:border-slate-200 hover:bg-white"
+                      }`}
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-xs font-semibold text-white">
+                        {getInitials(student.fullName)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-slate-950">
+                          {student.fullName}
+                        </span>
+                        <span className="block truncate text-xs text-slate-500">{student.email}</span>
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white">
+            {selectedAccessStudent ? (
+              <>
+                <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-slate-950">
+                      {selectedAccessStudent.fullName}
+                    </p>
+                    <p className="truncate text-sm text-slate-500">{selectedAccessStudent.email}</p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Cadastro {formatDateLabel(selectedAccessStudent.createdAt)}
+                  </span>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {selectedStudentControls.map((control) => {
+                    const shouldAllow = control.isManuallyBlocked || !control.hasAccess;
+
+                    return (
+                      <div
+                        key={`${control.account.id}-${control.course.id}`}
+                        className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-slate-950">
+                              {control.course.title}
+                            </p>
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getCourseControlTone(control)}`}
+                            >
+                              {control.sourceLabel}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                            <span>
+                              Ordem Elite: {control.course.eliteSortOrder || "-"}
+                            </span>
+                            <span>
+                              Libera em: {control.course.eliteReleaseDelayDays || 1} dia(s)
+                            </span>
+                            <span>
+                              Prazo:{" "}
+                              {control.daysRemaining === null
+                                ? "--"
+                                : `${control.daysRemaining} dia(s) restantes`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant={shouldAllow ? "default" : "outline"}
+                          size="sm"
+                          disabled={courseAccessMutation.isPending}
+                          onClick={() =>
+                            courseAccessMutation.mutate({
+                              studentId: control.account.id,
+                              courseId: control.course.id,
+                              allow: shouldAllow,
+                            })
+                          }
+                          className={
+                            shouldAllow
+                              ? "h-9 rounded-xl bg-blue-700 px-4 text-white hover:bg-blue-800"
+                              : "h-9 rounded-xl border-red-200 px-4 text-red-700 hover:bg-red-50"
+                          }
+                        >
+                          {shouldAllow ? "Liberar" : "Retirar"}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div className="px-4 py-8 text-center text-sm text-slate-500">
+                Busque e selecione um aluno para gerenciar os cursos.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <section className="grid gap-6 xl:grid-cols-[0.88fr_1.12fr]">
         <Card className="border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
           <CardHeader className="space-y-3">
@@ -586,17 +812,19 @@ export default function AdminDashboard() {
         </Card>
 
         <Card className="overflow-hidden border-slate-200 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.06)]">
-          <CardHeader className="border-b border-slate-100 pb-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <CardHeader className="border-b border-slate-100 px-5 py-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle>Solicitações de matrícula</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-xl font-semibold tracking-[-0.03em]">
+                  Solicitações de matrícula
+                </CardTitle>
+                <CardDescription className="mt-1 text-sm">
                   Lista compacta para aprovar, revisar contato e acompanhar o histórico.
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                <span className="rounded-full bg-slate-100 px-3 py-1.5">10 por página</span>
-                <span className="rounded-full bg-primary/10 px-3 py-1.5 text-primary">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                <span className="rounded-full bg-slate-100 px-3 py-1">10 por página</span>
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-primary">
                   {filteredRequests.length} total
                 </span>
               </div>
@@ -612,51 +840,53 @@ export default function AdminDashboard() {
                 {visibleRequests.map((request) => (
                   <div
                     key={request.id}
-                    className="grid gap-4 px-5 py-4 transition hover:bg-slate-50/75 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)_190px_260px] xl:items-center"
+                    className="grid gap-3 px-4 py-3 transition hover:bg-slate-50/75 lg:grid-cols-[minmax(220px,1.1fr)_minmax(210px,1fr)_minmax(190px,0.85fr)_auto] lg:items-center"
                   >
                     <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-xs font-semibold text-white">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-xs font-semibold text-white shadow-sm">
                         {getInitials(request.fullName)}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-950">
+                        <p className="text-sm font-semibold leading-tight text-slate-950">
                           {request.fullName}
                         </p>
-                        <p className="truncate text-sm text-slate-500">{request.email}</p>
-                        <p className="text-xs text-slate-400">
-                          {request.whatsapp || "Sem WhatsApp"}
-                        </p>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                          <span className="max-w-[240px] truncate">{request.email}</span>
+                          <span>{request.whatsapp || "Sem WhatsApp"}</span>
+                        </div>
                       </div>
                     </div>
 
                     <div className="min-w-0 space-y-1">
-                      <p className="truncate text-sm font-semibold text-primary">
+                      <p className="truncate text-sm font-semibold text-slate-900">
                         {request.courseTitle}
                       </p>
-                      <p className="truncate text-xs text-slate-500">{request.linkTitle}</p>
+                      <p className="truncate text-xs font-medium text-primary/85">{request.linkTitle}</p>
                       {request.notes ? (
                         <p className="line-clamp-1 text-xs text-slate-400">{request.notes}</p>
                       ) : null}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs xl:grid-cols-1">
-                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                        <p className="uppercase tracking-[0.18em] text-slate-400">Cadastro</p>
-                        <p className="mt-1 font-semibold text-slate-700">
+                    <div className="flex flex-wrap gap-2 text-[11px]">
+                      <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                        <span className="font-semibold uppercase tracking-[0.16em] text-slate-400">Cadastro</span>
+                        <strong className="font-semibold text-slate-800">
                           {formatDateLabel(request.createdAt)}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                        <p className="uppercase tracking-[0.18em] text-slate-400">Aprovação</p>
-                        <p className="mt-1 font-semibold text-slate-700">
+                        </strong>
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                        <span className="font-semibold uppercase tracking-[0.16em] text-slate-400">
+                          Aprovação
+                        </span>
+                        <strong className="font-semibold text-slate-800">
                           {formatDateLabel(request.approvedAt)}
-                        </p>
-                      </div>
+                        </strong>
+                      </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                       <span
-                        className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
                           request.status === "approved"
                             ? "bg-emerald-100 text-emerald-800"
                             : "bg-amber-100 text-amber-800"
@@ -668,7 +898,7 @@ export default function AdminDashboard() {
                       {request.status === "pending" ? (
                         <>
                           <select
-                            className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none transition focus:border-primary"
+                            className="h-9 w-28 rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none transition focus:border-primary"
                             value={requestDurations[request.id] ?? 365}
                             onChange={(event) =>
                               setRequestDurations((current) => ({
@@ -692,7 +922,7 @@ export default function AdminDashboard() {
                             }
                             disabled={approveMutation.isPending}
                             size="sm"
-                            className="h-9 rounded-xl"
+                            className="h-9 rounded-xl px-4"
                           >
                             Liberar
                           </Button>

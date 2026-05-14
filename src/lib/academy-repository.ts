@@ -15,6 +15,7 @@ import type {
   AdminOverviewData,
   AdminReportsData,
   AdminStudentAccess,
+  AdminStudentCourseControl,
   Course,
   CourseDetailData,
   CourseLesson,
@@ -32,6 +33,7 @@ import type {
   EnrollmentRequest,
   EnrollmentRequestSummary,
   ReorderCourseLessonsInput,
+  SetStudentCourseAccessInput,
   StudentCourseAccess,
   StudentDashboardData,
   UpdateEliteCourseSettingsInput,
@@ -42,6 +44,8 @@ const ACCESS_DURATION_DAYS = 365;
 const ELITE_LINK_SLUG = "acesso-elite";
 const ELITE_COURSE_SLUG = "acesso-elite-bundle";
 const MASTER_ELITE_COURSE_SLUG = "aula-mestre-acesso-elite";
+const ADMIN_COURSE_ACCESS_SOURCE_SLUG = "admin-course-access";
+const ADMIN_COURSE_BLOCK_SOURCE_SLUG = "admin-course-block";
 const DEFAULT_HERO_IMAGE =
   "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1200&q=80";
 
@@ -123,8 +127,16 @@ function isEliteEnrollment(enrollment: Enrollment) {
   return enrollment.sourceSlug === ELITE_LINK_SLUG || enrollment.sourceSlug === ELITE_COURSE_SLUG;
 }
 
+function isCourseBlockEnrollment(enrollment: Enrollment) {
+  return enrollment.sourceSlug === ADMIN_COURSE_BLOCK_SOURCE_SLUG;
+}
+
 function isActiveEnrollment(enrollment: Enrollment) {
   return normalizeEnrollment(enrollment).status === "active";
+}
+
+function getEnrollmentCourseKey(enrollment: Pick<Enrollment, "studentId" | "courseId">) {
+  return `${enrollment.studentId}:${enrollment.courseId}`;
 }
 
 function isEliteTargetCourse(course: Course) {
@@ -179,10 +191,16 @@ function expandEnrollmentsWithEliteAccess(
   studentId?: string | null,
 ) {
   const normalizedEnrollments = enrollments.map(normalizeEnrollment);
+  const blockedCourseKeys = new Set(
+    normalizedEnrollments
+      .filter(isCourseBlockEnrollment)
+      .map(getEnrollmentCourseKey),
+  );
   const eliteAnchors = new Map<string, Enrollment>();
 
   for (const enrollment of normalizedEnrollments) {
     if (
+      isCourseBlockEnrollment(enrollment) ||
       !isEliteEnrollment(enrollment) ||
       !isActiveEnrollment(enrollment) ||
       (studentId && enrollment.studentId !== studentId)
@@ -194,11 +212,21 @@ function expandEnrollmentsWithEliteAccess(
     eliteAnchors.set(enrollment.studentId, pickBestEnrollment(current, enrollment));
   }
 
-  const expandedEnrollments = [...normalizedEnrollments];
+  const expandedEnrollments = normalizedEnrollments.filter(
+    (enrollment) =>
+      !isCourseBlockEnrollment(enrollment) &&
+      !blockedCourseKeys.has(getEnrollmentCourseKey(enrollment)),
+  );
   const eliteCourses = courses.filter(isEliteTargetCourse);
 
   for (const anchor of eliteAnchors.values()) {
     for (const course of eliteCourses) {
+      const courseKey = `${anchor.studentId}:${course.id}`;
+
+      if (blockedCourseKeys.has(courseKey)) {
+        continue;
+      }
+
       const hasActiveEliteEnrollment = normalizedEnrollments.some(
         (enrollment) =>
           enrollment.studentId === anchor.studentId &&
@@ -302,7 +330,19 @@ async function syncPublishedCourseToEliteSupabase(course: Course) {
     }
   }
 
+  const blockedCourseKeys = new Set(
+    collections.enrollments
+      .filter(isCourseBlockEnrollment)
+      .map(getEnrollmentCourseKey),
+  );
+
   for (const anchor of eliteAnchors.values()) {
+    const courseKey = `${anchor.studentId}:${course.id}`;
+
+    if (blockedCourseKeys.has(courseKey)) {
+      continue;
+    }
+
     const existing = collections.enrollments.find(
       (item) => item.studentId === anchor.studentId && item.courseId === course.id,
     );
@@ -346,8 +386,19 @@ function syncPublishedCourseToEliteDemo(course: Course) {
     }
 
     const nextEnrollments = [...state.enrollments];
+    const blockedCourseKeys = new Set(
+      state.enrollments
+        .filter(isCourseBlockEnrollment)
+        .map(getEnrollmentCourseKey),
+    );
 
     for (const anchor of eliteAnchors.values()) {
+      const courseKey = `${anchor.studentId}:${course.id}`;
+
+      if (blockedCourseKeys.has(courseKey)) {
+        continue;
+      }
+
       const existing = nextEnrollments.find(
         (item) => item.studentId === anchor.studentId && item.courseId === course.id,
       );
@@ -567,6 +618,82 @@ function buildAdminStudentRows(
       };
     })
     .sort((a, b) => a.account.fullName.localeCompare(b.account.fullName));
+}
+
+function buildAdminStudentCourseControls(
+  accounts: AcademyAccount[],
+  courses: Course[],
+  enrollments: Enrollment[],
+): AdminStudentCourseControl[] {
+  const studentAccounts = accounts
+    .filter((account) => account.role === "student")
+    .sort((a, b) => a.fullName.localeCompare(b.fullName));
+  const publishedCourses = sortCoursesForElite(courses.filter(isEliteTargetCourse));
+  const normalizedEnrollments = enrollments.map(normalizeEnrollment);
+  const blockedCourseKeys = new Set(
+    normalizedEnrollments
+      .filter(isCourseBlockEnrollment)
+      .map(getEnrollmentCourseKey),
+  );
+
+  return studentAccounts.flatMap((account) => {
+    const activeEliteAnchor =
+      normalizedEnrollments
+        .filter(
+          (enrollment) =>
+            enrollment.studentId === account.id &&
+            isEliteEnrollment(enrollment) &&
+            isActiveEnrollment(enrollment),
+        )
+        .sort((a, b) => new Date(b.expiresAt).getTime() - new Date(a.expiresAt).getTime())[0] ??
+      null;
+
+    return publishedCourses.map((course) => {
+      const courseKey = `${account.id}:${course.id}`;
+      const isManuallyBlocked = blockedCourseKeys.has(courseKey);
+      const activeEnrollment =
+        normalizedEnrollments
+          .filter(
+            (enrollment) =>
+              enrollment.studentId === account.id &&
+              enrollment.courseId === course.id &&
+              !isCourseBlockEnrollment(enrollment) &&
+              isActiveEnrollment(enrollment),
+          )
+          .sort((a, b) => new Date(b.expiresAt).getTime() - new Date(a.expiresAt).getTime())[0] ??
+        null;
+      const isEliteInherited =
+        Boolean(activeEliteAnchor) &&
+        !isManuallyBlocked &&
+        (!activeEnrollment || isEliteEnrollment(activeEnrollment));
+      const hasAccess = !isManuallyBlocked && Boolean(activeEnrollment || activeEliteAnchor);
+      const sourceLabel = isManuallyBlocked
+        ? "Bloqueado no Elite"
+        : activeEnrollment?.sourceSlug === ADMIN_COURSE_ACCESS_SOURCE_SLUG
+          ? "Liberado manualmente"
+          : isEliteInherited
+            ? "Acesso Elite"
+            : activeEnrollment
+              ? "Matricula direta"
+              : "Sem acesso";
+      const expiresAt = activeEnrollment?.expiresAt ?? activeEliteAnchor?.expiresAt ?? null;
+
+      return {
+        account,
+        course,
+        enrollment: activeEnrollment,
+        hasAccess,
+        isEliteStudent: Boolean(activeEliteAnchor),
+        isEliteInherited,
+        isManuallyBlocked,
+        sourceLabel,
+        daysRemaining:
+          hasAccess && expiresAt
+            ? Math.max(0, differenceInCalendarDays(new Date(expiresAt), new Date()))
+            : null,
+      } satisfies AdminStudentCourseControl;
+    });
+  });
 }
 
 function buildRequestSummaries(
@@ -1870,6 +1997,7 @@ export const academyRepository = {
           await getSupabaseCollections();
         const expandedEnrollments = expandEnrollmentsWithEliteAccess(courses, enrollments);
         const students = buildAdminStudentRows(accounts, courses, expandedEnrollments);
+        const studentCourseAccess = buildAdminStudentCourseControls(accounts, courses, enrollments);
 
         return {
           stats: {
@@ -1885,6 +2013,7 @@ export const academyRepository = {
           links,
           requests: buildRequestSummaries(requests, courses, links),
           students,
+          studentCourseAccess,
         };
       },
       async () => {
@@ -1894,6 +2023,11 @@ export const academyRepository = {
           state.enrollments,
         );
         const students = buildAdminStudentRows(state.accounts, state.courses, expandedEnrollments);
+        const studentCourseAccess = buildAdminStudentCourseControls(
+          state.accounts,
+          state.courses,
+          state.enrollments,
+        );
 
         return {
           stats: {
@@ -1909,6 +2043,7 @@ export const academyRepository = {
           links: state.links,
           requests: buildRequestSummaries(state.requests, state.courses, state.links),
           students,
+          studentCourseAccess,
         };
       },
     );
@@ -2280,6 +2415,176 @@ export const academyRepository = {
               : item,
           ),
         }));
+      },
+    );
+  },
+
+  async setStudentCourseAccess(input: SetStudentCourseAccessInput) {
+    return trySupabase(
+      async () => {
+        if (!supabase) {
+          throw new Error("Supabase indisponivel");
+        }
+
+        const collections = await getSupabaseCollections();
+        const student = collections.accounts.find((account) => account.id === input.studentId);
+        const course = collections.courses.find((item) => item.id === input.courseId);
+
+        if (!student || student.role !== "student") {
+          throw new Error("Aluno nao encontrado");
+        }
+
+        if (!course) {
+          throw new Error("Curso nao encontrado");
+        }
+
+        if (!input.allow) {
+          const existingBlock = collections.enrollments.find(
+            (enrollment) =>
+              enrollment.studentId === input.studentId &&
+              enrollment.courseId === input.courseId &&
+              isCourseBlockEnrollment(enrollment),
+          );
+          const blockPayload = {
+            course_id: input.courseId,
+            student_id: input.studentId,
+            granted_at: nowIso(),
+            expires_at: getExpiresAt(3650),
+            source_slug: ADMIN_COURSE_BLOCK_SOURCE_SLUG,
+            status: "cancelled",
+          };
+          const blockResult = existingBlock
+            ? await supabase.from("enrollments").update(blockPayload).eq("id", existingBlock.id)
+            : await supabase.from("enrollments").insert(blockPayload);
+
+          if (blockResult.error) {
+            throw blockResult.error;
+          }
+
+          return;
+        }
+
+        const removeBlock = await supabase
+          .from("enrollments")
+          .delete()
+          .eq("student_id", input.studentId)
+          .eq("course_id", input.courseId)
+          .eq("source_slug", ADMIN_COURSE_BLOCK_SOURCE_SLUG);
+
+        if (removeBlock.error) {
+          throw removeBlock.error;
+        }
+
+        const activeEnrollment = collections.enrollments.find(
+          (enrollment) =>
+            enrollment.studentId === input.studentId &&
+            enrollment.courseId === input.courseId &&
+            !isCourseBlockEnrollment(enrollment) &&
+            isActiveEnrollment(enrollment),
+        );
+        const activeEliteAnchor = collections.enrollments.find(
+          (enrollment) =>
+            enrollment.studentId === input.studentId &&
+            isEliteEnrollment(enrollment) &&
+            isActiveEnrollment(enrollment),
+        );
+
+        if (activeEnrollment || activeEliteAnchor) {
+          return;
+        }
+
+        const grantedAt = nowIso();
+        const manualResult = await supabase.from("enrollments").insert({
+          course_id: input.courseId,
+          student_id: input.studentId,
+          granted_at: grantedAt,
+          expires_at: getExpiresAt(ACCESS_DURATION_DAYS, grantedAt),
+          source_slug: ADMIN_COURSE_ACCESS_SOURCE_SLUG,
+          status: "active",
+        });
+
+        if (manualResult.error) {
+          throw manualResult.error;
+        }
+      },
+      async () => {
+        const state = getDemoCollections();
+        const student = state.accounts.find((account) => account.id === input.studentId);
+        const course = state.courses.find((item) => item.id === input.courseId);
+
+        if (!student || student.role !== "student") {
+          throw new Error("Aluno nao encontrado");
+        }
+
+        if (!course) {
+          throw new Error("Curso nao encontrado");
+        }
+
+        updateDemoState((currentState) => {
+          const withoutBlocks = currentState.enrollments.filter(
+            (enrollment) =>
+              !(
+                enrollment.studentId === input.studentId &&
+                enrollment.courseId === input.courseId &&
+                isCourseBlockEnrollment(enrollment)
+              ),
+          );
+
+          if (!input.allow) {
+            return {
+              ...currentState,
+              enrollments: [
+                {
+                  id: createId("enrollment"),
+                  courseId: input.courseId,
+                  studentId: input.studentId,
+                  grantedAt: nowIso(),
+                  expiresAt: getExpiresAt(3650),
+                  sourceSlug: ADMIN_COURSE_BLOCK_SOURCE_SLUG,
+                  status: "cancelled",
+                },
+                ...withoutBlocks,
+              ],
+            };
+          }
+
+          const hasActiveEnrollment = withoutBlocks.some(
+            (enrollment) =>
+              enrollment.studentId === input.studentId &&
+              enrollment.courseId === input.courseId &&
+              isActiveEnrollment(enrollment),
+          );
+          const hasActiveEliteAnchor = withoutBlocks.some(
+            (enrollment) =>
+              enrollment.studentId === input.studentId &&
+              isEliteEnrollment(enrollment) &&
+              isActiveEnrollment(enrollment),
+          );
+
+          if (hasActiveEnrollment || hasActiveEliteAnchor) {
+            return {
+              ...currentState,
+              enrollments: withoutBlocks,
+            };
+          }
+
+          const grantedAt = nowIso();
+          return {
+            ...currentState,
+            enrollments: [
+              {
+                id: createId("enrollment"),
+                courseId: input.courseId,
+                studentId: input.studentId,
+                grantedAt,
+                expiresAt: getExpiresAt(ACCESS_DURATION_DAYS, grantedAt),
+                sourceSlug: ADMIN_COURSE_ACCESS_SOURCE_SLUG,
+                status: "active",
+              },
+              ...withoutBlocks,
+            ],
+          };
+        });
       },
     );
   },

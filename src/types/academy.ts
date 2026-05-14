@@ -131,6 +131,18 @@ export type AdminStudentAccess = {
   daysRemaining: number | null;
 };
 
+export type AdminStudentCourseControl = {
+  account: AcademyAccount;
+  course: Course;
+  enrollment: Enrollment | null;
+  hasAccess: boolean;
+  isEliteStudent: boolean;
+  isEliteInherited: boolean;
+  isManuallyBlocked: boolean;
+  sourceLabel: string;
+  daysRemaining: number | null;
+};
+
 export type AdminOverviewData = {
   stats: {
     activeStudents: number;
@@ -142,6 +154,7 @@ export type AdminOverviewData = {
   links: EnrollmentLink[];
   requests: EnrollmentRequestSummary[];
   students: AdminStudentAccess[];
+  studentCourseAccess: AdminStudentCourseControl[];
 };
 
 export type AdminReportStudentCourse = {
@@ -285,4 +298,10 @@ export type UpdateEliteCourseSettingsInput = {
 export type ReorderCourseLessonsInput = {
   moduleId: string;
   lessonIds: string[];
+};
+
+export type SetStudentCourseAccessInput = {
+  studentId: string;
+  courseId: string;
+  allow: boolean;
 };
