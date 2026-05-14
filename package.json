@@ -6,9 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --mode production && node scripts/prepare-static-fallback.mjs",
-    "build:hostinger": "npm run build",
-    "build:static": "npm run build",
+    "build": "vite build",
+    "build:hostinger": "vite build",
     "build:dev": "vite build --mode development",
     "package:hostinger": "powershell -ExecutionPolicy Bypass -File scripts/package-hostinger.ps1",
     "start": "node server/index.js",
