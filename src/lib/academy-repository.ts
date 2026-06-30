@@ -3036,6 +3036,45 @@ export const academyRepository = {
     );
   },
 
+  async uploadCourseHeroImage(input: { file: File; courseTitle?: string; courseId?: string }) {
+    return trySupabase(
+      async () => {
+        if (!supabase) {
+          throw new Error("Supabase indisponivel");
+        }
+
+        const ext = input.file.name.includes(".") ? input.file.name.split(".").pop() ?? "" : "";
+        const baseName = ext
+          ? input.file.name.slice(0, -(ext.length + 1))
+          : input.file.name;
+        const safeBaseName = sanitizeFileName(baseName) || "capa";
+        const safeExt = sanitizeFileName(ext);
+        const fileName = safeExt ? `${safeBaseName}.${safeExt}` : safeBaseName;
+        const folder =
+          slugify(input.courseId ?? input.courseTitle ?? "") || `novo-curso-${Date.now()}`;
+        const storagePath = `covers/${folder}/${Date.now()}-${fileName}`;
+
+        const uploadResult = await supabase.storage
+          .from("course-assets")
+          .upload(storagePath, input.file, {
+            cacheControl: "3600",
+            contentType: input.file.type || undefined,
+            upsert: false,
+          });
+
+        if (uploadResult.error) {
+          throw toAppError(
+            uploadResult.error,
+            "Nao foi possivel enviar a capa. Configure o bucket course-assets no Supabase.",
+          );
+        }
+
+        return supabase.storage.from("course-assets").getPublicUrl(storagePath).data.publicUrl;
+      },
+      async () => URL.createObjectURL(input.file),
+    );
+  },
+
   async deleteCourseResource(resourceId: string) {
     return trySupabase(
       async () => {

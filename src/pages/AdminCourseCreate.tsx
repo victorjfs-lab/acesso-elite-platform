@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle2, ChevronRight, Sparkles } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChevronRight, Sparkles, Upload } from "lucide-react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { academyRepository } from "@/lib/academy-repository";
 import { useAuth } from "@/context/AuthContext";
@@ -29,6 +29,9 @@ const steps = [
   },
 ];
 
+const MAX_COURSE_COVER_SIZE_BYTES = 10 * 1024 * 1024;
+const COURSE_COVER_EXTENSION_PATTERN = /\.(png|jpe?g|webp|gif)$/i;
+
 export default function AdminCourseCreate() {
   const { account } = useAuth();
   const navigate = useNavigate();
@@ -44,6 +47,28 @@ export default function AdminCourseCreate() {
   const [eliteSortOrder, setEliteSortOrder] = useState("100");
   const [eliteReleaseDelayDays, setEliteReleaseDelayDays] = useState("0");
   const [status, setStatus] = useState<"published" | "draft">("draft");
+
+  const heroImageUploadMutation = useMutation({
+    mutationFn: (file: File) =>
+      academyRepository.uploadCourseHeroImage({
+        file,
+        courseTitle: title,
+      }),
+    onSuccess: (imageUrl) => {
+      setHeroImage(imageUrl);
+      toast({
+        title: "Capa enviada",
+        description: "A imagem foi enviada e aplicada ao curso.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Nao foi possivel enviar a capa",
+        description: error instanceof Error ? error.message : "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -80,6 +105,39 @@ export default function AdminCourseCreate() {
 
   const canAdvanceInfo = title.trim() && subtitle.trim() && description.trim();
   const canAdvanceConfig = instructorName.trim() && priceLabel.trim();
+
+  function handleHeroImageFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const isImageFile =
+      file.type.startsWith("image/") || COURSE_COVER_EXTENSION_PATTERN.test(file.name);
+
+    if (!isImageFile) {
+      event.target.value = "";
+      toast({
+        title: "Arquivo invalido",
+        description: "Escolha uma imagem em PNG, JPG, WebP ou GIF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > MAX_COURSE_COVER_SIZE_BYTES) {
+      event.target.value = "";
+      toast({
+        title: "Imagem muito grande",
+        description: "Envie uma capa com ate 10 MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    heroImageUploadMutation.mutate(file);
+  }
 
   return (
     <div className="space-y-8">
@@ -167,6 +225,22 @@ export default function AdminCourseCreate() {
                 placeholder="https://sua-imagem.com/capa-do-curso.jpg"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="hero-image-file">Enviar imagem para o servidor</Label>
+              <Input
+                id="hero-image-file"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                disabled={heroImageUploadMutation.isPending}
+                onChange={handleHeroImageFileChange}
+              />
+              <div className="flex items-center gap-2 text-xs leading-5 text-muted-foreground">
+                <Upload className="h-3.5 w-3.5" />
+                {heroImageUploadMutation.isPending
+                  ? "Enviando imagem..."
+                  : "PNG, JPG, WebP ou GIF ate 10 MB."}
+              </div>
+            </div>
             <div className="rounded-3xl border border-amber-200/60 bg-[linear-gradient(180deg,#fffaf0_0%,#ffffff_100%)] p-5">
               <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
                 <p className="text-sm leading-6 text-muted-foreground">
@@ -187,7 +261,11 @@ export default function AdminCourseCreate() {
               </div>
             </div>
             <div className="flex justify-end">
-              <Button disabled={!canAdvanceInfo} onClick={() => setStep(1)} className="gap-2">
+              <Button
+                disabled={!canAdvanceInfo || heroImageUploadMutation.isPending}
+                onClick={() => setStep(1)}
+                className="gap-2"
+              >
                 Continuar
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -307,7 +385,10 @@ export default function AdminCourseCreate() {
               <Button variant="outline" onClick={() => setStep(1)}>
                 Voltar
               </Button>
-              <Button disabled={createMutation.isPending} onClick={() => createMutation.mutate()}>
+              <Button
+                disabled={createMutation.isPending || heroImageUploadMutation.isPending}
+                onClick={() => createMutation.mutate()}
+              >
                 {createMutation.isPending ? "Criando..." : "Criar curso e abrir editor"}
               </Button>
             </div>
